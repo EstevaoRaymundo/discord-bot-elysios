@@ -9,47 +9,37 @@ from dotenv import load_dotenv
 
 
 # =========================================================
-# CONFIGURAÇÕES GERAIS
+# CONFIGURAÇÕES
 # =========================================================
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# O bot responde somente a este prefixo
+# O bot responde somente a esse comando.
 PREFIX = "!roll"
 
-# Máximo de dados em uma rolagem:
-# !roll 10000d30
+# Limites para rolagens normais.
 MAX_DICE = 10_000
-
-# Máximo de faces:
-# !roll 1d10000
 MAX_SIDES = 10_000
 
-# Máximo de porcentagens em uma expressão
+# Limites de modificadores.
 MAX_PERCENTAGES = 15
-
-# Máximo total de modificadores:
-# +10, -5, +20%, *3 etc.
 MAX_MODIFIERS = 30
-
-# Maior número aceito em cada modificador
 MAX_MODIFIER_VALUE = 1_000_000
 
-# Quantos resultados individuais aparecem na mensagem.
+# Quantidade máxima de dados exibidos na mensagem.
 # Todos os dados ainda são rolados e somados.
 MAX_DISPLAYED_ROLLS = 100
 
-# Máximo de repetições com #
-# Exemplo: !roll 250#d30
+# Limite para comandos como:
+# !roll 250#d30
 MAX_REPEAT_ROLLS = 250
 
-# Limite de caracteres de uma mensagem do Discord
+# Limite de caracteres de uma mensagem do Discord.
 DISCORD_MESSAGE_LIMIT = 2_000
 
-# Aumenta a precisão para operações com várias
-# porcentagens e multiplicações.
+# Precisão para cálculos com várias porcentagens.
 getcontext().prec = 300
 
 
@@ -57,7 +47,7 @@ getcontext().prec = 300
 # EXPRESSÕES REGULARES
 # =========================================================
 
-# Formatos aceitos:
+# Exemplos aceitos:
 #
 # d30
 # 1d30
@@ -67,11 +57,10 @@ getcontext().prec = 300
 # 1d30+10
 # 1d30-5
 # 1d30+20%
+# 1d30-35%
 # 1d30+40%+40%
 # 1d30*3
 # 1d30+20%*3
-# 1d30+20%+20%+20%+5+1+10%
-#
 DICE_PATTERN = re.compile(
     r"^(?P<quantity>\d*)"
     r"d"
@@ -80,20 +69,20 @@ DICE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Identifica cada modificador individual:
+# Identifica modificadores como:
 #
 # +20%
-# -10%
-# +5
-# -3
-# *2
+# -35%
+# +10
+# -5
+# *3
 MODIFIER_PATTERN = re.compile(
     r"(?P<operator>[+*-])"
     r"(?P<value>\d+)"
     r"(?P<percentage>%?)"
 )
 
-# Formatos de repetição:
+# Exemplos:
 #
 # 10#d30
 # 5#1d100+20%
@@ -115,26 +104,20 @@ def roll_expression(expression: str) -> Dict[str, Any]:
 
     Os modificadores são aplicados na ordem em que aparecem.
 
-    Exemplo com resultado inicial 13:
+    Exemplo:
 
-        1d30+40%+40%
+        Resultado inicial: 13
+        +40%: 18.2
+        +40%: 25.48
 
-        13 + 40% = 18.20
-        18.20 + 40% = 25.48
+    Multiplicação:
 
-    Exemplo com multiplicação:
-
-        1d30+20%*3
-
-        10 + 20% = 12
-        12 * 3 = 36
+        Resultado inicial: 10
+        +20%: 12
+        *3: 36
     """
 
-    # Remove todos os espaços.
-    #
-    # Assim, estas duas formas funcionam:
-    # !roll 1d30+20%
-    # !roll 1d30 + 20%
+    # Remove espaços e transforma em letras minúsculas.
     cleaned = "".join(expression.split()).lower()
 
     match = DICE_PATTERN.fullmatch(cleaned)
@@ -150,19 +133,17 @@ def roll_expression(expression: str) -> Dict[str, Any]:
     sides = int(match.group("sides"))
     modifiers_text = match.group("modifiers")
 
-    # Faz "d30" aparecer como "1d30" nos resultados.
+    # Faz "d30" aparecer como "1d30".
     display_expression = (
         f"{quantity}d{sides}{modifiers_text}"
     )
 
-    # Valida a quantidade de dados
     if not 1 <= quantity <= MAX_DICE:
         raise ValueError(
             f"A quantidade de dados deve estar entre "
             f"1 e {MAX_DICE:,}."
         )
 
-    # Valida a quantidade de faces
     if not 2 <= sides <= MAX_SIDES:
         raise ValueError(
             f"O dado deve ter entre 2 e "
@@ -173,7 +154,6 @@ def roll_expression(expression: str) -> Dict[str, Any]:
         MODIFIER_PATTERN.finditer(modifiers_text)
     )
 
-    # Valida o número total de modificadores
     if len(modifier_matches) > MAX_MODIFIERS:
         raise ValueError(
             f"Você pode utilizar no máximo "
@@ -186,27 +166,23 @@ def roll_expression(expression: str) -> Dict[str, Any]:
         if modifier.group("percentage") == "%"
     )
 
-    # Valida a quantidade de porcentagens
     if percentage_count > MAX_PERCENTAGES:
         raise ValueError(
             f"Você pode utilizar no máximo "
             f"{MAX_PERCENTAGES} porcentagens."
         )
 
-    # Realiza as rolagens
+    # Realiza todos os dados da expressão.
     rolls = [
         secrets.randbelow(sides) + 1
         for _ in range(quantity)
     ]
 
     subtotal = sum(rolls)
-
-    # Decimal evita erros comuns de precisão de float
     current_total = Decimal(subtotal)
 
     applied_modifiers = []
 
-    # Aplica cada modificador na ordem digitada
     for modifier_match in modifier_matches:
         operator = modifier_match.group("operator")
         value = int(modifier_match.group("value"))
@@ -224,7 +200,7 @@ def roll_expression(expression: str) -> Dict[str, Any]:
         previous_total = current_total
 
         if is_percentage:
-            # Não aceita algo como *20%
+            # Impede expressões como *20%.
             if operator == "*":
                 raise ValueError(
                     "Não é possível multiplicar diretamente "
@@ -236,7 +212,6 @@ def roll_expression(expression: str) -> Dict[str, Any]:
                 Decimal(value) / Decimal(100)
             )
 
-            # A porcentagem usa o total acumulado
             percentage_amount = (
                 current_total * percentage
             )
@@ -244,7 +219,6 @@ def roll_expression(expression: str) -> Dict[str, Any]:
             if operator == "+":
                 current_total += percentage_amount
                 applied_value = percentage_amount
-
             else:
                 current_total -= percentage_amount
                 applied_value = -percentage_amount
@@ -261,8 +235,9 @@ def roll_expression(expression: str) -> Dict[str, Any]:
                 applied_value = -fixed_value
 
             else:
-                # Multiplicação
+                # Multiplicação.
                 current_total *= fixed_value
+
                 applied_value = (
                     current_total - previous_total
                 )
@@ -292,40 +267,39 @@ def roll_expression(expression: str) -> Dict[str, Any]:
 
 def format_number(number: Any) -> str:
     """
-    Formata o resultado final.
+    Mostra no máximo duas casas decimais.
 
-    Números inteiros não recebem casas decimais:
+    As casas excedentes são cortadas, sem arredondamento.
 
-        30.0000 -> 30
+    Exemplos:
 
-    Números decimais recebem exatamente duas casas,
-    cortando as casas excedentes sem arredondar:
-
-        21.8064 -> 21.80
+        21.8064 -> 21.8
         25.4899 -> 25.48
-        18.2000 -> 18.20
+        18.2000 -> 18.2
+        30.0000 -> 30
     """
 
     decimal_number = Decimal(number)
 
-    # Mantém números inteiros sem .00
     if (
         decimal_number
         == decimal_number.to_integral_value()
     ):
         return format(decimal_number, ".0f")
 
-    # Corta depois da segunda casa decimal
     truncated_number = decimal_number.quantize(
         Decimal("0.00"),
         rounding=ROUND_DOWN,
     )
 
-    # Evita exibir -0.00
+    # Evita mostrar -0.
     if truncated_number == Decimal("-0.00"):
         truncated_number = Decimal("0.00")
 
-    return format(truncated_number, ".2f")
+    formatted = format(truncated_number, ".2f")
+
+    # Remove zeros desnecessários no final.
+    return formatted.rstrip("0").rstrip(".")
 
 
 def format_rolls(
@@ -336,12 +310,11 @@ def format_rolls(
     Formata os resultados individuais.
 
     O número 1 e o número máximo do dado ficam em negrito,
-    pois são considerados resultados críticos.
+    pois são considerados críticos.
     """
 
     formatted_rolls = []
 
-    # Em rolagens enormes, mostra apenas uma parte
     visible_rolls = rolls[:MAX_DISPLAYED_ROLLS]
 
     for roll in visible_rolls:
@@ -376,24 +349,26 @@ def format_rolls(
 
 
 def build_discord_messages(
-    header: str,
     lines: List[str],
 ) -> List[str]:
     """
-    Divide resultados grandes em várias mensagens para
-    não ultrapassar o limite de caracteres do Discord.
+    Divide respostas grandes em várias mensagens para não
+    ultrapassar o limite de 2.000 caracteres do Discord.
     """
 
     messages = []
-    current_message = header
+    current_message = ""
 
     for line in lines:
-        candidate = (
-            f"{current_message}\n{line}"
-        )
+        if current_message:
+            candidate = f"{current_message}\n{line}"
+        else:
+            candidate = line
 
         if len(candidate) > DISCORD_MESSAGE_LIMIT:
-            messages.append(current_message)
+            if current_message:
+                messages.append(current_message)
+
             current_message = line
         else:
             current_message = candidate
@@ -410,8 +385,7 @@ def build_discord_messages(
 
 intents = discord.Intents.default()
 
-# Necessário para ler o texto de comandos como:
-# !roll 1d30
+# Necessário para ler comandos escritos no chat.
 intents.message_content = True
 
 client = discord.Client(
@@ -420,7 +394,7 @@ client = discord.Client(
 
 
 # =========================================================
-# EVENTOS DO DISCORD
+# EVENTOS
 # =========================================================
 
 @client.event
@@ -439,7 +413,7 @@ async def on_ready() -> None:
 async def on_message(
     message: discord.Message,
 ) -> None:
-    # Ignora mensagens de bots
+    # Ignora mensagens enviadas por bots.
     if message.author.bot:
         return
 
@@ -448,24 +422,16 @@ async def on_message(
     if not content:
         return
 
-    # Divide o comando da expressão.
-    #
-    # !roll 1d30
-    #
-    # command = !roll
-    # expression = 1d30
     parts = content.split(maxsplit=1)
     command = parts[0].lower()
 
     # O bot responde somente ao comando exato !roll.
     #
-    # Uma mensagem contendo apenas "1d30"
-    # será completamente ignorada.
+    # Uma mensagem contendo apenas "1d30" será ignorada.
     if command != PREFIX:
         return
 
-    # Caso a pessoa envie apenas !roll,
-    # mostra os exemplos.
+    # Mostra ajuda quando o jogador envia somente !roll.
     if len(parts) == 1:
         help_message = (
             "**🎲 Como usar o bot de dados**\n\n"
@@ -473,8 +439,7 @@ async def on_message(
             "`!roll 10d30`\n"
             "`!roll 1d100`\n"
             "`!roll 1d30+10`\n"
-            "`!roll 1d30-5`\n"
-            "`!roll 1d30+20%`\n"
+            "`!roll 1d30-35%`\n"
             "`!roll 1d30+40%+40%`\n"
             "`!roll 1d30*3`\n"
             "`!roll 1d30+20%*3`\n"
@@ -489,11 +454,9 @@ async def on_message(
             f"`{MAX_REPEAT_ROLLS}`"
         )
 
-        await message.channel.send(
+        await message.reply(
             help_message,
-            allowed_mentions=(
-                discord.AllowedMentions.none()
-            ),
+            mention_author=True,
         )
         return
 
@@ -502,16 +465,9 @@ async def on_message(
     if not expression:
         return
 
-    # Remove espaços e padroniza as letras
     cleaned_expression = "".join(
         expression.split()
     ).lower()
-
-    # Pega o apelido do jogador no servidor.
-    # Caso não tenha apelido, usa o nome de exibição.
-    player_name = discord.utils.escape_markdown(
-        message.author.global_name
-    )
 
     # =====================================================
     # ROLAGENS INDEPENDENTES COM #
@@ -530,10 +486,12 @@ async def on_message(
             "expression"
         )
 
-        # Somente valores entre 1 e 250 são aceitos.
+        # Valores acima de 250 são ignorados.
         #
-        # Acima de 250, o bot não responde.
-        # Portanto, 10000#d10000 será ignorado.
+        # Portanto, estes comandos não recebem resposta:
+        #
+        # !roll 251#d30
+        # !roll 10000#d10000
         if not 1 <= repetitions <= MAX_REPEAT_ROLLS:
             return
 
@@ -565,31 +523,28 @@ async def on_message(
                 )
 
         except ValueError as error:
-            await message.channel.send(
+            await message.reply(
                 f"❌ {error}",
-                allowed_mentions=(
-                    discord.AllowedMentions.none()
-                ),
+                mention_author=True,
             )
             return
 
-        header = (
-            f"🎲 **{player_name} rolou** "
-            f"{cleaned_expression}"
-        )
-
         responses = build_discord_messages(
-            header,
-            result_lines,
+            result_lines
         )
 
-        for response in responses:
-            await message.channel.send(
-                response,
-                allowed_mentions=(
-                    discord.AllowedMentions.none()
-                ),
-            )
+        # A primeira mensagem responde diretamente ao
+        # jogador que utilizou o comando.
+        for index, response in enumerate(responses):
+            if index == 0:
+                await message.reply(
+                    response,
+                    mention_author=True,
+                )
+            else:
+                await message.channel.send(
+                    response
+                )
 
         return
 
@@ -603,11 +558,9 @@ async def on_message(
         )
 
     except ValueError as error:
-        await message.channel.send(
+        await message.reply(
             f"❌ {error}",
-            allowed_mentions=(
-                discord.AllowedMentions.none()
-            ),
+            mention_author=True,
         )
         return
 
@@ -621,18 +574,15 @@ async def on_message(
     )
 
     response = (
-        f"🎲 **{player_name} rolou** "
-        f"{result['display_expression']}\n\n"
-        f"`  {formatted_total}  ` "
+        f"`{formatted_total}` "
         f"⟵ [{rolls_text}] "
         f"{result['display_expression']}"
     )
 
-    await message.channel.send(
+    # Responde diretamente à mensagem do jogador.
+    await message.reply(
         response,
-        allowed_mentions=(
-            discord.AllowedMentions.none()
-        ),
+        mention_author=True,
     )
 
 
