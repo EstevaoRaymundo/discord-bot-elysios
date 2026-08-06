@@ -448,9 +448,9 @@ async def on_message(
                 )
 
                 result_line = (
-                    f"`{formatted_total}` "
+                    f"` {formatted_total} ` "
                     f"⟵ [{rolls_text}] "
-                    f"{result[ 'display_expression' ]}"
+                    f"{result['display_expression']}"
                 )
 
                 result_lines.append(result_line)
@@ -508,9 +508,9 @@ async def on_message(
     #
     # A resposta contém somente o resultado.
     response = (
-        f"`{formatted_total}` "
+        f"` {formatted_total} ` "
         f"⟵ [{rolls_text}] "
-        f"{result[ 'display_expression' ]}"
+        f"{result['display_expression']}"
     )
 
     # Responde diretamente à mensagem do jogador
