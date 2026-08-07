@@ -1,55 +1,50 @@
+"""Ponto de entrada do bot Elysios."""
+
+import logging
 import os
-import random
-import re
-import traceback
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from typing import Optional
 
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
+# Mantém estas funções disponíveis para imports já existentes de bot.py.
+from utils.dados import (
+    PADRAO_ROLAGEM,
+    calcular_rolagem,
+    formatar_numero,
+)
 
-# =========================================================
-# VARIÁVEIS DE AMBIENTE
-# =========================================================
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
-# =========================================================
-# CONFIGURAÇÃO DO BOT
-# =========================================================
+EXTENSOES = (
+    "cogs.iniciativa",
+    "cogs.rolagem",
+)
+
 
 intents = discord.Intents.default()
 
-# Necessário para comandos como !iniciativa e !ping.
+# Necessário para comandos com prefixo e rolagens em mensagens.
 intents.message_content = True
 
 
 class ElysiosBot(commands.Bot):
-    """
-    Classe principal do bot.
-
-    O setup_hook é executado antes de o bot ficar online
-    e carrega os arquivos existentes dentro da pasta cogs.
-    """
+    """Classe principal do bot."""
 
     async def setup_hook(self) -> None:
-        try:
-            await self.load_extension("cogs.iniciativa")
-            print("✅ cogs.iniciativa carregado com sucesso.")
-
-        except Exception as erro:
-            print("❌ Não foi possível carregar cogs.iniciativa.")
-
-            traceback.print_exception(
-                type(erro),
-                erro,
-                erro.__traceback__
-            )
-
-            raise
+        for extensao in EXTENSOES:
+            try:
+                await self.load_extension(extensao)
+                logger.info("Extensão %s carregada.", extensao)
+            except Exception:
+                logger.exception(
+                    "Não foi possível carregar a extensão %s.",
+                    extensao
+                )
+                raise
 
 
 bot = ElysiosBot(
@@ -60,243 +55,6 @@ bot = ElysiosBot(
 )
 
 
-# =========================================================
-# SISTEMA DE ROLAGEM
-# =========================================================
-
-# Formatos aceitos:
-#
-# 1d30
-# 1d30+5
-# 1d30-5
-# 1d30+35%
-# 1d30-35%
-# 2d20
-# 5#d30
-#
-# A mensagem precisa conter apenas a rolagem.
-
-PADRAO_ROLAGEM = re.compile(
-    r"^\s*"
-    r"(?:(?P<repeticoes>\d+)\s*#\s*)?"
-    r"(?P<quantidade>\d*)"
-    r"[dD]"
-    r"(?P<faces>\d+)"
-    r"\s*"
-    r"(?P<modificadores>(?:[+-]\s*\d+(?:[.,]\d+)?%?\s*)*)"
-    r"\s*$"
-)
-
-
-def formatar_numero(valor: Decimal) -> str:
-    """
-    Mostra até duas casas decimais.
-
-    Exemplos:
-    18.20 -> 18.2
-    20.00 -> 20
-    12.56 -> 12.56
-    """
-
-    valor = valor.quantize(
-        Decimal("0.01"),
-        rounding=ROUND_HALF_UP
-    )
-
-    texto = format(valor, "f")
-
-    if "." in texto:
-        texto = texto.rstrip("0").rstrip(".")
-
-    return texto
-
-
-def calcular_rolagem(expressao: str) -> Optional[str]:
-    """
-    Calcula uma expressão de dado e devolve a mensagem
-    já formatada.
-
-    Retorna None quando a mensagem não é uma rolagem.
-    """
-
-    correspondencia = PADRAO_ROLAGEM.fullmatch(expressao)
-
-    if correspondencia is None:
-        return None
-
-    quantidade_texto = correspondencia.group("quantidade")
-    faces_texto = correspondencia.group("faces")
-    modificadores_texto = correspondencia.group("modificadores")
-    repeticoes_texto = correspondencia.group("repeticoes")
-
-    quantidade = (
-        int(quantidade_texto)
-        if quantidade_texto
-        else 1
-    )
-
-    faces = int(faces_texto)
-
-    repeticoes = (
-        int(repeticoes_texto)
-        if repeticoes_texto
-        else 1
-    )
-
-    modificadores = [
-        re.sub(r"\s+", "", modificador)
-        for modificador in re.findall(
-            r"[+-]\s*\d+(?:[.,]\d+)?%?",
-            modificadores_texto
-        )
-    ]
-
-    # Proteções contra rolagens exageradas.
-    if repeticoes < 1 or repeticoes > 50:
-        return (
-            "❌ A quantidade de rolagens individuais "
-            "precisa estar entre 1 e 50."
-        )
-
-    if quantidade < 1 or quantidade > 100:
-        return (
-            "❌ A quantidade de dados precisa estar "
-            "entre 1 e 100."
-        )
-
-    if faces < 2 or faces > 100000:
-        return (
-            "❌ A quantidade de faces precisa estar "
-            "entre 2 e 100000."
-        )
-
-    if repeticoes_texto:
-        expressao_individual = f"{quantidade}d{faces}"
-
-        if modificadores:
-            expressao_individual += "".join(modificadores)
-
-        return "\n".join(
-            calcular_rolagem(expressao_individual) or ""
-            for _ in range(repeticoes)
-        )
-
-    resultados = [
-        random.randint(1, faces)
-        for _ in range(quantidade)
-    ]
-
-    soma_dados = sum(resultados)
-    resultado_final = Decimal(soma_dados)
-
-    for modificador in modificadores:
-        sinal = modificador[0]
-        valor_texto = modificador[1:]
-
-        try:
-            if valor_texto.endswith("%"):
-                porcentagem_texto = (
-                    valor_texto[:-1]
-                    .replace(",", ".")
-                )
-
-                porcentagem = Decimal(
-                    porcentagem_texto
-                )
-
-                fator = porcentagem / Decimal("100")
-
-                if sinal == "+":
-                    resultado_final *= (
-                        Decimal("1") + fator
-                    )
-                else:
-                    resultado_final *= (
-                        Decimal("1") - fator
-                    )
-
-            else:
-                valor_numerico = Decimal(
-                    valor_texto.replace(",", ".")
-                )
-
-                if sinal == "+":
-                    resultado_final += valor_numerico
-                else:
-                    resultado_final -= valor_numerico
-
-        except InvalidOperation:
-            return "❌ O modificador da rolagem é inválido."
-
-    resultado_formatado = formatar_numero(
-        resultado_final
-    )
-
-    if quantidade == 1:
-        dados_formatados = f"[{resultados[0]}]"
-    else:
-        dados_formatados = (
-            "["
-            + ", ".join(
-                str(resultado)
-                for resultado in resultados
-            )
-            + "]"
-        )
-
-    expressao_formatada = expressao.strip()
-
-    return (
-        f"`  {resultado_formatado}  ` "
-        f"⟵ {dados_formatados} "
-        f"{expressao_formatada}"
-    )
-
-
-@bot.listen("on_message")
-async def ouvir_rolagens(
-    message: discord.Message
-) -> None:
-    """
-    Escuta mensagens que contenham apenas uma expressão
-    de rolagem.
-
-    Como isto é um listener e não substitui on_message,
-    os comandos ! continuam funcionando normalmente.
-    """
-
-    if message.author.bot:
-        return
-
-    # Mensagens iniciadas com ! pertencem ao sistema
-    # de comandos e não ao sistema de rolagem.
-    if message.content.startswith("!"):
-        return
-
-    resultado = calcular_rolagem(
-        message.content
-    )
-
-    if resultado is None:
-        return
-
-    try:
-        await message.reply(
-            resultado,
-            mention_author=True
-        )
-
-    except discord.Forbidden:
-        print(
-            "❌ O bot não tem permissão para responder "
-            f"no canal {message.channel}."
-        )
-
-
-# =========================================================
-# COMANDO DE TESTE
-# =========================================================
-
 @bot.command(name="ping")
 async def ping(ctx: commands.Context) -> None:
     await ctx.reply(
@@ -305,39 +63,28 @@ async def ping(ctx: commands.Context) -> None:
     )
 
 
-# =========================================================
-# BOT ONLINE
-# =========================================================
-
 @bot.event
 async def on_ready() -> None:
     if bot.user is None:
         return
 
-    print("=" * 50)
-    print(f"✅ Bot conectado como: {bot.user}")
-    print(f"✅ ID do bot: {bot.user.id}")
-    print("✅ Comandos carregados:")
+    logger.info("Bot conectado como: %s", bot.user)
+    logger.info("ID do bot: %s", bot.user.id)
+    logger.info(
+        "Comandos carregados: %s",
+        ", ".join(
+            comando.qualified_name
+            for comando in bot.walk_commands()
+        )
+    )
 
-    for comando in bot.walk_commands():
-        print(f"   - {comando.qualified_name}")
-
-    print("=" * 50)
-
-
-# =========================================================
-# ERROS GERAIS DOS COMANDOS
-# =========================================================
 
 @bot.event
 async def on_command_error(
     ctx: commands.Context,
     erro: commands.CommandError
 ) -> None:
-    """
-    Erros tratados pelo próprio Cog não chegam aqui.
-    Este evento trata os demais erros do bot.
-    """
+    """Trata erros não processados pelo próprio comando ou Cog."""
 
     if hasattr(ctx.command, "on_error"):
         return
@@ -350,23 +97,18 @@ async def on_command_error(
         if metodo_erro is not None:
             return
 
-    erro_original = getattr(
-        erro,
-        "original",
-        erro
-    )
+    erro_original = getattr(erro, "original", erro)
 
-    # Ignora mensagens comuns que começam com !
-    # mas que não correspondem a um comando.
-    if isinstance(
-        erro_original,
-        commands.CommandNotFound
-    ):
+    if isinstance(erro_original, commands.CommandNotFound):
         return
 
-    print(
-        "❌ Erro em um comando:",
-        repr(erro_original)
+    logger.error(
+        "Erro em um comando.",
+        exc_info=(
+            type(erro_original),
+            erro_original,
+            erro_original.__traceback__
+        )
     )
 
     try:
@@ -375,28 +117,36 @@ async def on_command_error(
             mention_author=False
         )
     except discord.HTTPException:
-        pass
+        logger.exception(
+            "Não foi possível enviar a mensagem de erro do comando."
+        )
 
 
-# =========================================================
-# TOKEN
-# =========================================================
+def obter_token() -> str:
+    """Obtém o token sem executar a conexão durante imports e testes."""
 
-# Aceita DISCORD_TOKEN ou TOKEN no arquivo .env.
-TOKEN = (
-    os.getenv("DISCORD_TOKEN")
-    or os.getenv("TOKEN")
-)
+    token = os.getenv("DISCORD_TOKEN") or os.getenv("TOKEN")
 
-if not TOKEN:
-    raise RuntimeError(
-        "O token não foi encontrado.\n"
-        "Coloque DISCORD_TOKEN=seu_token no arquivo .env."
+    if not token:
+        raise RuntimeError(
+            "O token não foi encontrado.\n"
+            "Coloque DISCORD_TOKEN=seu_token no arquivo .env."
+        )
+
+    return token
+
+
+def configurar_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     )
 
 
-# =========================================================
-# INICIAR
-# =========================================================
+def main() -> None:
+    configurar_logging()
+    bot.run(obter_token(), log_handler=None)
 
-bot.run(TOKEN)
+
+if __name__ == "__main__":
+    main()
