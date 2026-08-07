@@ -6,31 +6,34 @@ from discord.ext import commands
 
 
 class Iniciativa(commands.Cog):
-    """Sistema de sorteio de iniciativa."""
+    """Sistema de iniciativa do bot."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-        # Cada canal pode possuir uma iniciativa diferente.
+        # Guarda uma iniciativa diferente para cada canal.
         #
-        # Chave:
-        # (ID do servidor, ID do canal)
-        #
-        # Valor:
-        # Dados da iniciativa.
+        # Formato:
+        # {
+        #     (servidor_id, canal_id): {
+        #         "titulo": "...",
+        #         "participantes": [...],
+        #         "criador_id": 123
+        #     }
+        # }
         self.iniciativas = {}
 
     # =====================================================
-    # VERIFICAÇÃO DE PERMISSÃO
+    # PERMISSÕES
     # =====================================================
 
     async def cog_check(self, ctx: commands.Context) -> bool:
         """
-        Esta verificação é aplicada em todos os comandos
-        existentes neste arquivo.
+        Esta verificação é executada em todos os comandos
+        deste arquivo.
 
         Somente membros com Gerenciar Mensagens podem usar
-        os comandos de iniciativa.
+        o sistema de iniciativa.
         """
 
         if ctx.guild is None:
@@ -52,7 +55,7 @@ class Iniciativa(commands.Cog):
     @staticmethod
     def obter_chave(ctx: commands.Context):
         """
-        Retorna uma chave formada pelo servidor e pelo canal.
+        Retorna o ID do servidor e do canal.
         """
 
         if ctx.guild is None:
@@ -61,18 +64,15 @@ class Iniciativa(commands.Cog):
         return ctx.guild.id, ctx.channel.id
 
     @staticmethod
-    def separar_jogadores(texto: str) -> list[str]:
+    def separar_participantes(texto: str):
         """
-        Separa os participantes por:
+        Separa os nomes por vírgula, ponto e vírgula
+        ou quebra de linha.
 
-        - vírgula;
-        - ponto e vírgula;
-        - quebra de linha.
-
-        Também remove participantes repetidos.
+        Também remove nomes repetidos.
         """
 
-        nomes_separados = re.split(
+        nomes = re.split(
             r"[,;\n]+",
             texto
         )
@@ -80,13 +80,13 @@ class Iniciativa(commands.Cog):
         participantes = []
         participantes_adicionados = set()
 
-        for nome in nomes_separados:
+        for nome in nomes:
             nome = nome.strip()
 
             if not nome:
                 continue
 
-            # Faz Finn, FINN e finn serem considerados
+            # Finn, FINN e finn serão considerados
             # o mesmo participante.
             nome_normalizado = nome.casefold()
 
@@ -102,11 +102,10 @@ class Iniciativa(commands.Cog):
         return participantes
 
     @staticmethod
-    def dividir_ordem_em_campos(
-        participantes: list[str]
-    ) -> list[str]:
+    def dividir_lista(participantes):
         """
-        Divide listas grandes em vários campos do embed.
+        Divide listas grandes para não ultrapassar
+        o limite dos campos do embed do Discord.
         """
 
         campos = []
@@ -116,11 +115,8 @@ class Iniciativa(commands.Cog):
             participantes,
             start=1
         ):
-            linha = (
-                f"**{posicao}.** {participante}\n"
-            )
+            linha = f"**{posicao}.** {participante}\n"
 
-            # Mantém uma margem antes do limite do Discord.
             if len(campo_atual) + len(linha) > 1000:
                 campos.append(campo_atual)
                 campo_atual = ""
@@ -132,12 +128,9 @@ class Iniciativa(commands.Cog):
 
         return campos
 
-    def criar_embed(
-        self,
-        dados: dict
-    ) -> discord.Embed:
+    def criar_embed(self, dados):
         """
-        Cria a mensagem com o título e a ordem sorteada.
+        Cria a mensagem com o título e a ordem.
         """
 
         embed = discord.Embed(
@@ -149,7 +142,7 @@ class Iniciativa(commands.Cog):
             color=discord.Color.dark_red()
         )
 
-        campos = self.dividir_ordem_em_campos(
+        campos = self.dividir_lista(
             dados["participantes"]
         )
 
@@ -158,21 +151,19 @@ class Iniciativa(commands.Cog):
             start=1
         ):
             if numero == 1:
-                titulo_campo = "🎲 Ordem dos turnos"
+                nome_campo = "🎲 Ordem dos turnos"
             else:
-                titulo_campo = "🎲 Continuação"
+                nome_campo = "🎲 Continuação"
 
             embed.add_field(
-                name=titulo_campo,
+                name=nome_campo,
                 value=campo,
                 inline=False
             )
 
         embed.add_field(
             name="👥 Participantes",
-            value=str(
-                len(dados["participantes"])
-            ),
+            value=str(len(dados["participantes"])),
             inline=True
         )
 
@@ -184,15 +175,15 @@ class Iniciativa(commands.Cog):
 
         embed.set_footer(
             text=(
-                "Use !iniciativa ver para consultar "
-                "novamente."
+                "Use !iniciativa ver para mostrar "
+                "a ordem novamente."
             )
         )
 
         return embed
 
     # =====================================================
-    # COMANDO PRINCIPAL
+    # !INICIATIVA
     # =====================================================
 
     @commands.group(
@@ -204,20 +195,20 @@ class Iniciativa(commands.Cog):
         ctx: commands.Context
     ):
         """
-        Mostra como utilizar os comandos.
+        Mostra os comandos disponíveis.
         """
 
         embed = discord.Embed(
             title="⚔️ Sistema de iniciativa",
             description=(
-                "**Iniciar uma iniciativa**\n"
+                "**Iniciar uma iniciativa:**\n"
                 "`!iniciativa iniciar Título / "
                 "Jogador 1, Jogador 2`\n\n"
 
-                "**Ver a iniciativa atual**\n"
+                "**Ver a iniciativa atual:**\n"
                 "`!iniciativa ver`\n\n"
 
-                "**Encerrar a iniciativa**\n"
+                "**Encerrar a iniciativa:**\n"
                 "`!iniciativa encerrar`"
             ),
             color=discord.Color.dark_red()
@@ -275,7 +266,7 @@ class Iniciativa(commands.Cog):
             )
             return
 
-        # Divide o texto na primeira barra encontrada.
+        # Divide o comando na primeira barra.
         titulo, separador, texto_participantes = (
             conteudo.partition("/")
         )
@@ -312,7 +303,7 @@ class Iniciativa(commands.Cog):
             )
             return
 
-        participantes = self.separar_jogadores(
+        participantes = self.separar_participantes(
             texto_participantes
         )
 
@@ -334,11 +325,10 @@ class Iniciativa(commands.Cog):
             )
             return
 
-        # Cria uma nova lista em ordem aleatória.
-        # Cada participante aparece apenas uma vez.
+        # Sorteia todos os participantes sem repetir.
         ordem_sorteada = random.sample(
             participantes,
-            k=len(participantes)
+            len(participantes)
         )
 
         dados = {
@@ -370,10 +360,6 @@ class Iniciativa(commands.Cog):
         self,
         ctx: commands.Context
     ):
-        """
-        Mostra a iniciativa ativa no canal.
-        """
-
         chave = self.obter_chave(ctx)
 
         if chave is None:
@@ -407,10 +393,6 @@ class Iniciativa(commands.Cog):
         self,
         ctx: commands.Context
     ):
-        """
-        Encerra a iniciativa ativa no canal.
-        """
-
         chave = self.obter_chave(ctx)
 
         if chave is None:
@@ -428,7 +410,7 @@ class Iniciativa(commands.Cog):
 
         titulo = dados["titulo"]
 
-        self.iniciativas.pop(chave)
+        del self.iniciativas[chave]
 
         await ctx.send(
             f"🏁 A iniciativa **{titulo}** foi encerrada "
@@ -436,7 +418,7 @@ class Iniciativa(commands.Cog):
         )
 
     # =====================================================
-    # TRATAMENTO DE ERROS
+    # ERROS
     # =====================================================
 
     async def cog_command_error(
@@ -444,10 +426,6 @@ class Iniciativa(commands.Cog):
         ctx: commands.Context,
         erro: commands.CommandError
     ):
-        """
-        Mostra mensagens de erro mais fáceis de entender.
-        """
-
         erro_original = getattr(
             erro,
             "original",
@@ -483,7 +461,7 @@ class Iniciativa(commands.Cog):
         ):
             await ctx.reply(
                 "Esse comando de iniciativa não existe.\n\n"
-                "Use:\n"
+                "Comandos disponíveis:\n"
                 "`!iniciativa iniciar`\n"
                 "`!iniciativa ver`\n"
                 "`!iniciativa encerrar`",
@@ -497,14 +475,14 @@ class Iniciativa(commands.Cog):
         )
 
         await ctx.reply(
-            "Ocorreu um erro ao executar o comando.",
+            "❌ Ocorreu um erro ao executar o comando.",
             mention_author=False
         )
 
 
 async def setup(bot: commands.Bot):
     """
-    Carrega este arquivo no bot.
+    Função necessária para carregar esta extensão.
     """
 
     await bot.add_cog(
