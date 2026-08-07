@@ -10,7 +10,7 @@ bot.py                 Ponto de entrada e eventos gerais
 cogs/iniciativa.py     Comandos !turnos
 cogs/rolagem.py        Listener de mensagens de rolagem
 utils/dados.py         Parser e cálculo das rolagens
-tests/                 Testes automatizados
+tests/                 Testes automatizado
 ```
 
 ## Instalação e execução
