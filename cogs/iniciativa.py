@@ -6,23 +6,30 @@ import discord
 from discord.ext import commands
 
 
-ChaveIniciativa = Tuple[int, int]
+# A chave identifica uma ordem de turnos pelo servidor e canal.
+ChaveTurnos = Tuple[int, int]
 
 
-class Iniciativa(commands.Cog):
+class Turnos(commands.Cog):
     """
-    Sistema de iniciativa.
+    Sistema de sorteio da ordem dos turnos.
 
-    Uma iniciativa diferente pode existir em cada canal.
+    Cada canal pode possuir uma ordem de turnos diferente.
     """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-        self.iniciativas: Dict[
-            ChaveIniciativa,
-            dict
-        ] = {}
+        # Estrutura:
+        #
+        # {
+        #     (servidor_id, canal_id): {
+        #         "titulo": "Ataque ao Castelo",
+        #         "participantes": ["Deki", "Finn"],
+        #         "criador_id": 123456789
+        #     }
+        # }
+        self.ordens: Dict[ChaveTurnos, dict] = {}
 
     # =====================================================
     # PERMISSÕES
@@ -33,7 +40,7 @@ class Iniciativa(commands.Cog):
         ctx: commands.Context
     ) -> bool:
         """
-        Todos os comandos deste Cog exigem a permissão
+        Todos os comandos deste arquivo exigem a permissão
         Gerenciar Mensagens.
         """
 
@@ -58,9 +65,10 @@ class Iniciativa(commands.Cog):
     @staticmethod
     def obter_chave(
         ctx: commands.Context
-    ) -> Optional[ChaveIniciativa]:
+    ) -> Optional[ChaveTurnos]:
         """
-        Usa o ID do servidor e do canal como chave.
+        Retorna uma chave formada pelo ID do servidor
+        e pelo ID do canal.
         """
 
         if ctx.guild is None:
@@ -76,10 +84,13 @@ class Iniciativa(commands.Cog):
         texto: str
     ) -> List[str]:
         """
-        Separa participantes por vírgula, ponto e vírgula
-        ou quebra de linha.
+        Separa os participantes por:
 
-        Também remove nomes repetidos.
+        - vírgula;
+        - ponto e vírgula;
+        - quebra de linha.
+
+        Nomes repetidos são removidos.
         """
 
         nomes = re.split(
@@ -96,6 +107,8 @@ class Iniciativa(commands.Cog):
             if not nome:
                 continue
 
+            # Finn, finn e FINN serão considerados
+            # o mesmo participante.
             nome_normalizado = nome.casefold()
 
             if nome_normalizado in nomes_adicionados:
@@ -145,7 +158,7 @@ class Iniciativa(commands.Cog):
         dados: dict
     ) -> discord.Embed:
         """
-        Monta o painel da iniciativa.
+        Cria o painel com o título e a ordem sorteada.
         """
 
         embed = discord.Embed(
@@ -165,11 +178,10 @@ class Iniciativa(commands.Cog):
             campos,
             start=1
         ):
-            nome_campo = (
-                "🎲 Ordem dos turnos"
-                if numero == 1
-                else "🎲 Continuação"
-            )
+            if numero == 1:
+                nome_campo = "🎲 Ordem dos turnos"
+            else:
+                nome_campo = "🎲 Continuação"
 
             embed.add_field(
                 name=nome_campo,
@@ -193,7 +205,7 @@ class Iniciativa(commands.Cog):
 
         embed.set_footer(
             text=(
-                "Use !iniciativa ver para mostrar "
+                "Use !turnos ver para mostrar "
                 "a ordem novamente."
             )
         )
@@ -201,34 +213,33 @@ class Iniciativa(commands.Cog):
         return embed
 
     # =====================================================
-    # !INICIATIVA
+    # !TURNOS
     # =====================================================
 
     @commands.group(
-        name="iniciativa",
+        name="turnos",
         invoke_without_command=True
     )
-    async def iniciativa(
+    async def turnos(
         self,
         ctx: commands.Context
     ) -> None:
         """
-        Mostra a ajuda quando o usuário digita
-        somente !iniciativa.
+        Mostra a ajuda quando alguém usa apenas !turnos.
         """
 
         embed = discord.Embed(
-            title="⚔️ Sistema de iniciativa",
+            title="⚔️ Sistema de turnos",
             description=(
-                "**Iniciar uma iniciativa**\n"
-                "`!iniciativa iniciar Título / "
+                "**Iniciar uma ordem de turnos**\n"
+                "`!turnos iniciar Título / "
                 "Jogador 1, Jogador 2`\n\n"
 
-                "**Ver a iniciativa atual**\n"
-                "`!iniciativa ver`\n\n"
+                "**Ver a ordem atual**\n"
+                "`!turnos ver`\n\n"
 
-                "**Encerrar a iniciativa**\n"
-                "`!iniciativa encerrar`"
+                "**Encerrar a ordem atual**\n"
+                "`!turnos encerrar`"
             ),
             color=discord.Color.dark_red()
         )
@@ -239,11 +250,11 @@ class Iniciativa(commands.Cog):
         )
 
     # =====================================================
-    # !INICIATIVA INICIAR
+    # !TURNOS INICIAR
     # =====================================================
 
-    @iniciativa.command(name="iniciar")
-    async def iniciativa_iniciar(
+    @turnos.command(name="iniciar")
+    async def turnos_iniciar(
         self,
         ctx: commands.Context,
         *,
@@ -252,7 +263,7 @@ class Iniciativa(commands.Cog):
         """
         Exemplo:
 
-        !iniciativa iniciar Ataque ao Castelo /
+        !turnos iniciar Ataque ao Castelo /
         Deki, Finn, Christian, Annaliz
         """
 
@@ -261,12 +272,12 @@ class Iniciativa(commands.Cog):
         if chave is None:
             return
 
-        if chave in self.iniciativas:
+        if chave in self.ordens:
             await ctx.reply(
-                "Já existe uma iniciativa ativa "
+                "Já existe uma ordem de turnos ativa "
                 "neste canal.\n"
-                "Use `!iniciativa encerrar` antes "
-                "de iniciar outra.",
+                "Use `!turnos encerrar` antes de "
+                "iniciar outra.",
                 mention_author=False
             )
             return
@@ -277,13 +288,14 @@ class Iniciativa(commands.Cog):
             await ctx.reply(
                 "Informe o título e os participantes.\n\n"
                 "**Exemplo:**\n"
-                "`!iniciativa iniciar Ataque ao Castelo / "
+                "`!turnos iniciar Ataque ao Castelo / "
                 "Deki, Finn, Christian, Annaliz`",
                 mention_author=False
             )
             return
 
-        # Divide o conteúdo na primeira barra.
+        # Divide o título e os participantes
+        # na primeira barra encontrada.
         titulo, separador, texto_participantes = (
             conteudo.partition("/")
         )
@@ -298,7 +310,7 @@ class Iniciativa(commands.Cog):
                 "Coloque uma `/` entre o título e os "
                 "participantes.\n\n"
                 "**Exemplo:**\n"
-                "`!iniciativa iniciar Ataque ao Castelo / "
+                "`!turnos iniciar Ataque ao Castelo / "
                 "Deki, Finn, Christian`",
                 mention_author=False
             )
@@ -306,8 +318,7 @@ class Iniciativa(commands.Cog):
 
         if not titulo:
             await ctx.reply(
-                "Informe o título da iniciativa "
-                "antes da `/`.",
+                "Informe o título antes da `/`.",
                 mention_author=False
             )
             return
@@ -328,7 +339,7 @@ class Iniciativa(commands.Cog):
             await ctx.reply(
                 "Informe pelo menos dois participantes.\n\n"
                 "**Exemplo:**\n"
-                "`!iniciativa iniciar Missão da Floresta / "
+                "`!turnos iniciar Missão da Floresta / "
                 "Deki, Finn`",
                 mention_author=False
             )
@@ -336,15 +347,13 @@ class Iniciativa(commands.Cog):
 
         if len(participantes) > 50:
             await ctx.reply(
-                "Uma iniciativa pode ter no máximo "
+                "Uma ordem pode ter no máximo "
                 "50 participantes.",
                 mention_author=False
             )
             return
 
-        # random.sample cria uma nova lista embaralhada.
-        # Como os nomes repetidos já foram removidos,
-        # ninguém aparecerá duas vezes.
+        # Sorteia todos os participantes sem repetir.
         ordem_sorteada = random.sample(
             participantes,
             k=len(participantes)
@@ -356,29 +365,29 @@ class Iniciativa(commands.Cog):
             "criador_id": ctx.author.id
         }
 
-        self.iniciativas[chave] = dados
+        self.ordens[chave] = dados
 
         embed = self.criar_embed(dados)
 
         await ctx.send(
             content=(
                 f"{ctx.author.mention} iniciou uma "
-                "nova iniciativa!"
+                "nova ordem de turnos!"
             ),
             embed=embed
         )
 
     # =====================================================
-    # !INICIATIVA VER
+    # !TURNOS VER
     # =====================================================
 
-    @iniciativa.command(name="ver")
-    async def iniciativa_ver(
+    @turnos.command(name="ver")
+    async def turnos_ver(
         self,
         ctx: commands.Context
     ) -> None:
         """
-        Mostra novamente a ordem salva.
+        Mostra novamente a ordem salva neste canal.
         """
 
         chave = self.obter_chave(ctx)
@@ -386,11 +395,11 @@ class Iniciativa(commands.Cog):
         if chave is None:
             return
 
-        dados = self.iniciativas.get(chave)
+        dados = self.ordens.get(chave)
 
         if dados is None:
             await ctx.reply(
-                "Não existe uma iniciativa ativa "
+                "Não existe uma ordem de turnos ativa "
                 "neste canal.",
                 mention_author=False
             )
@@ -404,16 +413,16 @@ class Iniciativa(commands.Cog):
         )
 
     # =====================================================
-    # !INICIATIVA ENCERRAR
+    # !TURNOS ENCERRAR
     # =====================================================
 
-    @iniciativa.command(name="encerrar")
-    async def iniciativa_encerrar(
+    @turnos.command(name="encerrar")
+    async def turnos_encerrar(
         self,
         ctx: commands.Context
     ) -> None:
         """
-        Apaga a iniciativa do canal atual.
+        Encerra a ordem de turnos do canal atual.
         """
 
         chave = self.obter_chave(ctx)
@@ -421,11 +430,11 @@ class Iniciativa(commands.Cog):
         if chave is None:
             return
 
-        dados = self.iniciativas.get(chave)
+        dados = self.ordens.get(chave)
 
         if dados is None:
             await ctx.reply(
-                "Não existe uma iniciativa ativa "
+                "Não existe uma ordem de turnos ativa "
                 "neste canal.",
                 mention_author=False
             )
@@ -433,15 +442,15 @@ class Iniciativa(commands.Cog):
 
         titulo = dados["titulo"]
 
-        del self.iniciativas[chave]
+        del self.ordens[chave]
 
         await ctx.send(
-            f"🏁 A iniciativa **{titulo}** foi encerrada "
-            f"por {ctx.author.mention}."
+            f"🏁 A ordem de turnos **{titulo}** foi "
+            f"encerrada por {ctx.author.mention}."
         )
 
     # =====================================================
-    # ERROS DO SISTEMA DE INICIATIVA
+    # ERROS
     # =====================================================
 
     async def cog_command_error(
@@ -449,6 +458,10 @@ class Iniciativa(commands.Cog):
         ctx: commands.Context,
         erro: commands.CommandError
     ) -> None:
+        """
+        Trata os erros dos comandos de turnos.
+        """
+
         erro_original = getattr(
             erro,
             "original",
@@ -473,7 +486,7 @@ class Iniciativa(commands.Cog):
             await ctx.reply(
                 "❌ Você precisa da permissão "
                 "**Gerenciar Mensagens** para usar "
-                "os comandos de iniciativa.",
+                "os comandos de turnos.",
                 mention_author=False
             )
             return
@@ -483,23 +496,23 @@ class Iniciativa(commands.Cog):
             commands.CommandNotFound
         ):
             await ctx.reply(
-                "Esse comando de iniciativa não existe.\n\n"
-                "Use:\n"
-                "`!iniciativa iniciar`\n"
-                "`!iniciativa ver`\n"
-                "`!iniciativa encerrar`",
+                "Esse comando de turnos não existe.\n\n"
+                "Comandos disponíveis:\n"
+                "`!turnos iniciar`\n"
+                "`!turnos ver`\n"
+                "`!turnos encerrar`",
                 mention_author=False
             )
             return
 
         print(
-            "❌ Erro no sistema de iniciativa:",
+            "❌ Erro no sistema de turnos:",
             repr(erro_original)
         )
 
         await ctx.reply(
             "❌ Ocorreu um erro ao executar "
-            "o comando de iniciativa.",
+            "o comando de turnos.",
             mention_author=False
         )
 
@@ -508,9 +521,9 @@ async def setup(
     bot: commands.Bot
 ) -> None:
     """
-    Função obrigatória para carregar a extensão.
+    Função usada pelo bot.py para carregar este arquivo.
     """
 
     await bot.add_cog(
-        Iniciativa(bot)
+        Turnos(bot)
     )
