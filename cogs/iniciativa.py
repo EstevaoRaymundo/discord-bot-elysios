@@ -526,4 +526,4 @@ async def setup(
 
     await bot.add_cog(
         Turnos(bot)
-    )
+    
