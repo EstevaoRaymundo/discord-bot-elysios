@@ -1,6 +1,6 @@
 """Ponto de entrada do bot Elysios."""
 
-import loggin
+import logging
 import os
 
 import discord
