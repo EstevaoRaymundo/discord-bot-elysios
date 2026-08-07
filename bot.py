@@ -83,7 +83,7 @@ PADRAO_ROLAGEM = re.compile(
     r"[dD]"
     r"(?P<faces>\d+)"
     r"\s*"
-    r"(?P<modificador>[+-]\s*\d+(?:[.,]\d+)?%?)?"
+    r"(?P<modificadores>(?:[+-]\s*\d+(?:[.,]\d+)?%?\s*)*)"
     r"\s*$"
 )
 
@@ -126,7 +126,7 @@ def calcular_rolagem(expressao: str) -> Optional[str]:
 
     quantidade_texto = correspondencia.group("quantidade")
     faces_texto = correspondencia.group("faces")
-    modificador = correspondencia.group("modificador")
+    modificadores_texto = correspondencia.group("modificadores")
     repeticoes_texto = correspondencia.group("repeticoes")
 
     quantidade = (
@@ -143,8 +143,13 @@ def calcular_rolagem(expressao: str) -> Optional[str]:
         else 1
     )
 
-    if modificador:
-        modificador = re.sub(r"\s+", "", modificador)
+    modificadores = [
+        re.sub(r"\s+", "", modificador)
+        for modificador in re.findall(
+            r"[+-]\s*\d+(?:[.,]\d+)?%?",
+            modificadores_texto
+        )
+    ]
 
     # Proteções contra rolagens exageradas.
     if repeticoes < 1 or repeticoes > 50:
@@ -168,8 +173,8 @@ def calcular_rolagem(expressao: str) -> Optional[str]:
     if repeticoes_texto:
         expressao_individual = f"{quantidade}d{faces}"
 
-        if modificador:
-            expressao_individual += modificador
+        if modificadores:
+            expressao_individual += "".join(modificadores)
 
         return "\n".join(
             calcular_rolagem(expressao_individual) or ""
@@ -184,7 +189,7 @@ def calcular_rolagem(expressao: str) -> Optional[str]:
     soma_dados = sum(resultados)
     resultado_final = Decimal(soma_dados)
 
-    if modificador:
+    for modificador in modificadores:
         sinal = modificador[0]
         valor_texto = modificador[1:]
 
