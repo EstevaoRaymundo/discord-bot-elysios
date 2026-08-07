@@ -72,15 +72,18 @@ bot = ElysiosBot(
 # 1d30+35%
 # 1d30-35%
 # 2d20
+# 5#d30
 #
 # A mensagem precisa conter apenas a rolagem.
 
 PADRAO_ROLAGEM = re.compile(
     r"^\s*"
+    r"(?:(?P<repeticoes>\d+)\s*#\s*)?"
     r"(?P<quantidade>\d*)"
     r"[dD]"
     r"(?P<faces>\d+)"
-    r"(?P<modificador>[+-]\d+(?:[.,]\d+)?%?)?"
+    r"\s*"
+    r"(?P<modificador>[+-]\s*\d+(?:[.,]\d+)?%?)?"
     r"\s*$"
 )
 
@@ -124,6 +127,7 @@ def calcular_rolagem(expressao: str) -> Optional[str]:
     quantidade_texto = correspondencia.group("quantidade")
     faces_texto = correspondencia.group("faces")
     modificador = correspondencia.group("modificador")
+    repeticoes_texto = correspondencia.group("repeticoes")
 
     quantidade = (
         int(quantidade_texto)
@@ -133,7 +137,22 @@ def calcular_rolagem(expressao: str) -> Optional[str]:
 
     faces = int(faces_texto)
 
+    repeticoes = (
+        int(repeticoes_texto)
+        if repeticoes_texto
+        else 1
+    )
+
+    if modificador:
+        modificador = re.sub(r"\s+", "", modificador)
+
     # Proteções contra rolagens exageradas.
+    if repeticoes < 1 or repeticoes > 50:
+        return (
+            "❌ A quantidade de rolagens individuais "
+            "precisa estar entre 1 e 50."
+        )
+
     if quantidade < 1 or quantidade > 100:
         return (
             "❌ A quantidade de dados precisa estar "
@@ -144,6 +163,17 @@ def calcular_rolagem(expressao: str) -> Optional[str]:
         return (
             "❌ A quantidade de faces precisa estar "
             "entre 2 e 100000."
+        )
+
+    if repeticoes_texto:
+        expressao_individual = f"{quantidade}d{faces}"
+
+        if modificador:
+            expressao_individual += modificador
+
+        return "\n".join(
+            calcular_rolagem(expressao_individual) or ""
+            for _ in range(repeticoes)
         )
 
     resultados = [
