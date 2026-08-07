@@ -1,6 +1,7 @@
+import logging
 import random
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TypedDict
 
 import discord
 from discord.ext import commands
@@ -8,6 +9,21 @@ from discord.ext import commands
 
 # A chave identifica uma ordem de turnos pelo servidor e canal.
 ChaveTurnos = Tuple[int, int]
+
+MAX_TITULO = 100
+MAX_PARTICIPANTES = 50
+MAX_CARACTERES_CAMPO = 1000
+MAX_CAMPOS_ORDEM = 23
+
+PADRAO_SEPARADOR_PARTICIPANTES = re.compile(r"[,;\n]+")
+
+logger = logging.getLogger(__name__)
+
+
+class DadosTurnos(TypedDict):
+    titulo: str
+    participantes: List[str]
+    criador_id: int
 
 
 class Turnos(commands.Cog):
@@ -29,7 +45,7 @@ class Turnos(commands.Cog):
         #         "criador_id": 123456789
         #     }
         # }
-        self.ordens: Dict[ChaveTurnos, dict] = {}
+        self.ordens: Dict[ChaveTurnos, DadosTurnos] = {}
 
     # =====================================================
     # PERMISSÕES
@@ -93,10 +109,7 @@ class Turnos(commands.Cog):
         Nomes repetidos são removidos.
         """
 
-        nomes = re.split(
-            r"[,;\n]+",
-            texto
-        )
+        nomes = PADRAO_SEPARADOR_PARTICIPANTES.split(texto)
 
         participantes: List[str] = []
         nomes_adicionados = set()
@@ -142,20 +155,33 @@ class Turnos(commands.Cog):
                 f"**{posicao}.** {participante}\n"
             )
 
-            if len(campo_atual) + len(linha) > 1000:
-                campos.append(campo_atual)
+            if len(campo_atual) + len(linha) > MAX_CARACTERES_CAMPO:
+                if campo_atual:
+                    campos.append(campo_atual)
+
                 campo_atual = ""
+
+            while len(linha) > MAX_CARACTERES_CAMPO:
+                campos.append(
+                    linha[:MAX_CARACTERES_CAMPO]
+                )
+                linha = linha[MAX_CARACTERES_CAMPO:]
 
             campo_atual += linha
 
         if campo_atual:
             campos.append(campo_atual)
 
+        if len(campos) > MAX_CAMPOS_ORDEM:
+            raise ValueError(
+                "A lista excede o limite de campos do Discord."
+            )
+
         return campos
 
     def criar_embed(
         self,
-        dados: dict
+        dados: DadosTurnos
     ) -> discord.Embed:
         """
         Cria o painel com o título e a ordem sorteada.
@@ -323,7 +349,7 @@ class Turnos(commands.Cog):
             )
             return
 
-        if len(titulo) > 100:
+        if len(titulo) > MAX_TITULO:
             await ctx.reply(
                 "O título pode ter no máximo "
                 "100 caracteres.",
@@ -345,7 +371,7 @@ class Turnos(commands.Cog):
             )
             return
 
-        if len(participantes) > 50:
+        if len(participantes) > MAX_PARTICIPANTES:
             await ctx.reply(
                 "Uma ordem pode ter no máximo "
                 "50 participantes.",
@@ -359,23 +385,26 @@ class Turnos(commands.Cog):
             k=len(participantes)
         )
 
-        dados = {
+        dados: DadosTurnos = {
             "titulo": titulo,
             "participantes": ordem_sorteada,
             "criador_id": ctx.author.id
         }
 
+        embed = self.criar_embed(dados)
         self.ordens[chave] = dados
 
-        embed = self.criar_embed(dados)
-
-        await ctx.send(
-            content=(
-                f"{ctx.author.mention} iniciou uma "
-                "nova ordem de turnos!"
-            ),
-            embed=embed
-        )
+        try:
+            await ctx.send(
+                content=(
+                    f"{ctx.author.mention} iniciou uma "
+                    "nova ordem de turnos!"
+                ),
+                embed=embed
+            )
+        except discord.HTTPException:
+            self.ordens.pop(chave, None)
+            raise
 
     # =====================================================
     # !TURNOS VER
@@ -430,7 +459,7 @@ class Turnos(commands.Cog):
         if chave is None:
             return
 
-        dados = self.ordens.get(chave)
+        dados = self.ordens.pop(chave, None)
 
         if dados is None:
             await ctx.reply(
@@ -442,12 +471,14 @@ class Turnos(commands.Cog):
 
         titulo = dados["titulo"]
 
-        del self.ordens[chave]
-
-        await ctx.send(
-            f"🏁 A ordem de turnos **{titulo}** foi "
-            f"encerrada por {ctx.author.mention}."
-        )
+        try:
+            await ctx.send(
+                f"🏁 A ordem de turnos **{titulo}** foi "
+                f"encerrada por {ctx.author.mention}."
+            )
+        except discord.HTTPException:
+            self.ordens.setdefault(chave, dados)
+            raise
 
     # =====================================================
     # ERROS
@@ -505,9 +536,13 @@ class Turnos(commands.Cog):
             )
             return
 
-        print(
-            "❌ Erro no sistema de turnos:",
-            repr(erro_original)
+        logger.error(
+            "Erro no sistema de turnos.",
+            exc_info=(
+                type(erro_original),
+                erro_original,
+                erro_original.__traceback__
+            )
         )
 
         await ctx.reply(
