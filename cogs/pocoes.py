@@ -1,18 +1,25 @@
 """Sistema local de resultados para o slash command /poção."""
 
-from copy import deepcopy
 from dataclasses import dataclass
 import json
 import logging
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple
-import unicodedata
-from urllib.parse import unquote, urlparse
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+from utils.discohook import (
+    EXTENSOES_IMAGEM,
+    extrair_embed,
+    listar_imagens,
+    localizar_attachment,
+    preparar_envio_embed,
+    resolver_imagem,
+    validar_embed,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +29,7 @@ DIRETORIO_RESULTADOS = (
     / "data"
 )
 NOME_ARQUIVO_RESULTADO = "resultado.json"
-EXTENSOES_IMAGEM = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+DIRETORIOS_RESERVADOS = frozenset({"manuais"})
 
 
 @dataclass(frozen=True)
@@ -33,48 +40,6 @@ class ResultadoPocao:
     embed_data: Dict[str, Any]
     attachment: Optional[Path] = None
     nome_attachment: Optional[str] = None
-
-
-def extrair_embed(dados: object) -> Optional[Dict[str, Any]]:
-    """Extrai ``embeds[0]`` do payload principal exportado pelo Discohook."""
-
-    if not isinstance(dados, dict):
-        return None
-
-    embeds = dados.get("embeds")
-
-    if not isinstance(embeds, list) or not embeds:
-        return None
-
-    primeira_embed = embeds[0]
-
-    if not isinstance(primeira_embed, dict) or not primeira_embed:
-        return None
-
-    return primeira_embed
-
-
-def _normalizar_nome(nome: str) -> str:
-    """Cria uma chave apenas para comparar nomes de arquivos locais."""
-
-    sem_acentos = unicodedata.normalize("NFKD", nome)
-    sem_acentos = "".join(
-        caractere
-        for caractere in sem_acentos
-        if not unicodedata.combining(caractere)
-    )
-    return "".join(
-        caractere
-        for caractere in sem_acentos.casefold()
-        if caractere.isalnum()
-    )
-
-
-def _nome_referenciado(url: str) -> str:
-    """Obtém somente o basename seguro de uma URL ``attachment://``."""
-
-    nome = unquote(url.split("://", maxsplit=1)[1])
-    return PurePosixPath(nome).name
 
 
 class Pocoes(commands.Cog):
@@ -105,7 +70,11 @@ class Pocoes(commands.Cog):
                 (
                     caminho
                     for caminho in self.diretorio_resultados.iterdir()
-                    if caminho.is_dir()
+                    if (
+                        caminho.is_dir()
+                        and caminho.name.casefold()
+                        not in DIRETORIOS_RESERVADOS
+                    )
                 ),
                 key=lambda caminho: caminho.name.casefold(),
             )
@@ -121,38 +90,16 @@ class Pocoes(commands.Cog):
         embed_data: Dict[str, Any],
         nome_resultado: str,
     ) -> bool:
-        try:
-            embed = discord.Embed.from_dict(embed_data)
-        except Exception:
-            logger.warning(
-                "[POÇÕES] Embed inválida: %s",
-                nome_resultado,
-                exc_info=True,
-            )
-            return False
-
-        if not embed:
-            logger.warning(
-                "[POÇÕES] Embed vazia ignorada: %s",
-                nome_resultado,
-            )
-            return False
-
-        return True
+        return validar_embed(
+            embed_data,
+            nome_resultado,
+            registrador=logger,
+            prefixo="[POÇÕES]",
+        )
 
     @staticmethod
     def _listar_imagens(pasta: Path) -> List[Path]:
-        imagens = []
-
-        for caminho in pasta.iterdir():
-            if (
-                caminho.is_file()
-                and caminho.suffix.casefold() in EXTENSOES_IMAGEM
-                and caminho.stat().st_size > 0
-            ):
-                imagens.append(caminho)
-
-        return sorted(imagens, key=lambda caminho: caminho.name.casefold())
+        return listar_imagens(pasta)
 
     @classmethod
     def _localizar_attachment(
@@ -160,50 +107,12 @@ class Pocoes(commands.Cog):
         pasta: Path,
         url: str,
     ) -> Optional[Path]:
-        try:
-            imagens = cls._listar_imagens(pasta)
-        except OSError:
-            logger.exception(
-                "[POÇÕES] Não foi possível ler os attachments: %s",
-                pasta.name,
-            )
-            return None
-
-        if not imagens:
-            logger.warning(
-                "[POÇÕES] Attachment local não encontrado: %s",
-                pasta.name,
-            )
-            return None
-
-        nome_esperado = _nome_referenciado(url)
-        correspondencias = [
-            caminho
-            for caminho in imagens
-            if caminho.name.casefold() == nome_esperado.casefold()
-        ]
-
-        if len(correspondencias) == 1:
-            return correspondencias[0]
-
-        nome_normalizado = _normalizar_nome(nome_esperado)
-        correspondencias = [
-            caminho
-            for caminho in imagens
-            if _normalizar_nome(caminho.name) == nome_normalizado
-        ]
-
-        if len(correspondencias) == 1:
-            return correspondencias[0]
-
-        if len(imagens) == 1:
-            return imagens[0]
-
-        logger.warning(
-            "[POÇÕES] Attachment local ambíguo: %s",
-            pasta.name,
+        return localizar_attachment(
+            pasta,
+            url,
+            registrador=logger,
+            prefixo="[POÇÕES]",
         )
-        return None
 
     @classmethod
     def _resolver_imagem(
@@ -211,57 +120,13 @@ class Pocoes(commands.Cog):
         pasta: Path,
         embed_data: Dict[str, Any],
     ) -> Optional[Tuple[Optional[Path], Optional[str]]]:
-        imagem = embed_data.get("image")
-
-        if imagem is None:
-            return None, None
-
-        if not isinstance(imagem, dict):
-            logger.warning("[POÇÕES] Imagem inválida: %s", pasta.name)
-            return None
-
-        url = imagem.get("url")
-
-        if not isinstance(url, str) or not url:
-            logger.warning("[POÇÕES] URL de imagem inválida: %s", pasta.name)
-            return None
-
-        url_analisada = urlparse(url)
-        esquema = url_analisada.scheme.casefold()
-
-        if esquema in {"http", "https"}:
-            if not url_analisada.netloc:
-                logger.warning(
-                    "[POÇÕES] URL de imagem inválida: %s",
-                    pasta.name,
-                )
-                return None
-
-            return None, None
-
-        if esquema != "attachment":
-            logger.warning(
-                "[POÇÕES] URL de imagem não suportada ignorada: %s",
-                pasta.name,
-            )
-            return None
-
-        nome_referenciado = _nome_referenciado(url)
-
-        if not nome_referenciado:
-            logger.warning(
-                "[POÇÕES] Nome de attachment inválido: %s",
-                pasta.name,
-            )
-            return None
-
-        attachment = cls._localizar_attachment(pasta, url)
-
-        if attachment is None:
-            return None
-
-        nome_envio = f"imagem_pocao{attachment.suffix.casefold()}"
-        return attachment, nome_envio
+        return resolver_imagem(
+            pasta,
+            embed_data,
+            nome_base_envio="imagem_pocao",
+            registrador=logger,
+            prefixo="[POÇÕES]",
+        )
 
     def carregar_resultado(self, pasta: Path) -> Optional[ResultadoPocao]:
         """Carrega uma pasta, isolando qualquer falha daquele resultado."""
@@ -352,31 +217,11 @@ class Pocoes(commands.Cog):
     ) -> Tuple[discord.Embed, Optional[discord.File]]:
         """Reconstrói a embed e abre somente o attachment sorteado."""
 
-        embed_data = deepcopy(resultado.embed_data)
-        arquivo = None
-
-        if resultado.attachment is not None:
-            nome_attachment = resultado.nome_attachment
-
-            if nome_attachment is None:
-                raise ValueError("Attachment sem nome de envio.")
-
-            embed_data["image"]["url"] = (
-                f"attachment://{nome_attachment}"
-            )
-            arquivo = discord.File(
-                resultado.attachment,
-                filename=nome_attachment,
-            )
-
-        try:
-            embed = discord.Embed.from_dict(embed_data)
-        except Exception:
-            if arquivo is not None:
-                arquivo.close()
-            raise
-
-        return embed, arquivo
+        return preparar_envio_embed(
+            resultado.embed_data,
+            resultado.attachment,
+            resultado.nome_attachment,
+        )
 
     @app_commands.command(
         name="poção",
