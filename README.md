@@ -1,16 +1,17 @@
 # Bot Elysios
 
-Bot de Discord com rolagem de dados por mensagens e gerenciamento de
-ordens de turnos.
+Bot de Discord com rolagem de dados por mensagens, gerenciamento de ordens de
+turnos, resultados de poções e manuais de atividades.
 
 ## Estrutura
 
 ```text
 bot.py                 Ponto de entrada e eventos gerais
 cogs/iniciativa.py     Comandos !turnos
+cogs/iniciar.py        Grupo de manuais /iniciar
 cogs/pocoes.py         Slash command /poção
 cogs/rolagem.py        Listener de mensagens de rolagem
-data/                  Resultados e mídias locais das poções
+data/                  Resultados, manuais e mídias locais
 utils/dados.py         Parser e cálculo das rolagens
 tests/                 Testes automatizados
 ```
@@ -94,10 +95,57 @@ automaticamente, sem lista Python. Consulte o
 [guia dos resultados](data/README.md) para o processo de
 exportação e um exemplo completo.
 
-Na inicialização, o bot carrega os Cogs e sincroniza globalmente sua árvore de
-Application Commands. A propagação de `/poção` pelo Discord pode levar algum
-tempo; alterações apenas nos JSONs ou nas imagens não exigem nova
-sincronização.
+## Manuais de início
+
+`/iniciar` é um grupo de Application Commands. Ele organiza os manuais como
+subcomandos e não é usado sozinho. O primeiro manual é `/iniciar poção`.
+
+Os dois comandos de poção têm responsabilidades diferentes:
+
+- `/iniciar poção` sempre mostra a embed fixa com as instruções de preparo;
+- `/poção` continua sorteando um resultado entre as poções válidas.
+
+O manual não realiza sorteio, não altera raridades ou probabilidades e não
+participa dos resultados de `/poção`. Seus arquivos ficam separados:
+
+```text
+data/
+├── pocao_comum/
+│   ├── resultado.json
+│   └── pocao_comum.gif
+└── manuais/
+    ├── manual.json
+    └── iniciar_pocao.gif    Opcional; necessário para attachment://
+```
+
+Crie a embed visualmente no Discohook, exporte o payload JSON completo e
+salve-o em UTF-8 como `data/manuais/manual.json`. O bot lê a primeira
+entrada de `embeds` e preserva textos, campos, cores, emojis, Unicode, Markdown
+e as demais propriedades compatíveis com `discord.Embed`.
+
+Se a embed usar `attachment://arquivo.gif`, baixe a mídia e coloque-a na mesma
+pasta do `manual.json`. Imagens permanentes `http://` ou `https://` continuam
+remotas. Endereços `blob:https://discohook.app/...` são temporários, não são
+acessados pelo bot e não substituem o arquivo local. Consulte o
+[guia do manual de poções](data/manuais/README.md) para preparar esses
+arquivos.
+
+Para criar futuramente `/iniciar mineração`, adicione no mesmo diretório um
+arquivo como `manual_mineracao.json` e sua mídia opcional. Também é necessário
+acrescentar em `cogs/iniciar.py` um novo método/subcomando no grupo `iniciar`,
+apontando para esse arquivo. Reutilize o grupo existente; não crie um comando
+solto como `/iniciar-mineração`.
+
+## Sincronização dos slash commands
+
+Na inicialização, o bot carrega os Cogs e sincroniza globalmente uma única
+árvore de Application Commands. Ao adicionar `/iniciar poção` ou outro novo
+subcomando, reinicie o bot e aguarde a propagação da sincronização pelo
+Discord.
+
+Adicionar ou editar somente o `manual.json`, GIF, PNG, JPG, JPEG ou WEBP de um
+manual já registrado não muda a estrutura dos comandos e não exige nova
+sincronização. O mesmo vale para os arquivos de resultados de `/poção`.
 
 ## Testes
 
