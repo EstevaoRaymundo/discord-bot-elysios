@@ -1,12 +1,16 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from discord import app_commands
+
 import bot
 from utils.dados import calcular_rolagem
 
 
 class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
     async def test_carrega_cogs_e_preserva_comandos(self):
+        arvore_original = bot.bot.tree
+
         with patch.object(
             bot.bot.tree,
             "sync",
@@ -32,7 +36,22 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(bot.bot.get_cog("Turnos"))
         self.assertIsNotNone(bot.bot.get_cog("Rolagem"))
         self.assertIsNotNone(bot.bot.get_cog("Pocoes"))
+        self.assertIsNotNone(bot.bot.get_cog("Iniciar"))
+        self.assertIs(bot.bot.tree, arvore_original)
+
+        grupo_iniciar = bot.bot.tree.get_command("iniciar")
+        self.assertIsInstance(grupo_iniciar, app_commands.Group)
+        self.assertEqual(
+            [comando.name for comando in grupo_iniciar.commands],
+            ["poção"],
+        )
+        self.assertEqual(
+            grupo_iniciar.get_command("poção").qualified_name,
+            "iniciar poção",
+        )
         self.assertIsNotNone(bot.bot.tree.get_command("poção"))
+        self.assertIsNone(bot.bot.tree.get_command("iniciar-poção"))
+        self.assertIsNone(bot.bot.get_command("iniciar"))
         self.assertIsNone(bot.bot.get_command("poção"))
         self.assertIsNone(bot.bot.get_command("pocao"))
         sincronizar.assert_awaited_once_with()

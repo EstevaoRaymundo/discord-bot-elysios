@@ -349,6 +349,24 @@ class CarregamentoPocoesTests(
         }
         self.assertEqual(descricoes, {"Comum", "Divina"})
 
+    def test_diretorio_de_manuais_nao_participa_do_sorteio(self):
+        self.criar_resultado(
+            "pocao_comum",
+            payload=criar_payload(descricao="Comum"),
+        )
+        pasta_manual = self.diretorio / "manuais"
+        pasta_manual.mkdir(parents=True)
+        (pasta_manual / "manual.json").write_text(
+            json.dumps(criar_payload(descricao="Manual")),
+            encoding="utf-8",
+        )
+        cog = self.criar_cog()
+
+        resultados = cog.carregar_resultados()
+
+        self.assertEqual(len(resultados), 1)
+        self.assertEqual(resultados[0].pasta.name, "pocao_comum")
+
     def test_diretorio_inexistente_retorna_lista_vazia(self):
         cog = Pocoes(
             bot=None,
