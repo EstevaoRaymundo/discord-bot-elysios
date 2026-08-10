@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import discord
 
-from cogs.pocoes import Pocoes, extrair_embed
+from cogs.pocoes import DIRETORIO_RESULTADOS, Pocoes, extrair_embed
 
 
 DESCRICAO_UNICODE = (
@@ -94,6 +94,11 @@ class DiretorioTemporarioMixin:
 
 
 class ExtrairEmbedTests(unittest.TestCase):
+    def test_diretorio_padrao_e_a_pasta_data(self):
+        raiz_projeto = Path(__file__).resolve().parent.parent
+
+        self.assertEqual(DIRETORIO_RESULTADOS, raiz_projeto / "data")
+
     def test_retorna_primeira_embed_sem_alterar_unicode(self):
         payload = criar_payload()
         payload["embeds"].append({"description": "segunda embed"})
