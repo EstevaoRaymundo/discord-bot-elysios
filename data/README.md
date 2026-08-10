@@ -10,7 +10,7 @@ Crie uma pasta sem acentos, espaços ou caracteres especiais para cada
 resultado:
 
 ```text
-data/resultados_pocoes/
+data/
 ├── pocao_comum/
 │   ├── resultado.json
 │   └── pocao_comum.gif
@@ -102,7 +102,7 @@ local e continua apontando para essa URL.
 Crie, por exemplo:
 
 ```text
-data/resultados_pocoes/pocao_divina/
+data/pocao_divina/
 ├── resultado.json
 └── pocao_divina.webp
 ```
