@@ -1,10 +1,12 @@
-# Resultados de poções
+# Dados locais do bot
 
-Este diretório armazena tudo que o slash command `/poção` usa. O bot não
-consulta o Discohook, mensagens antigas ou serviços externos para carregar os
-resultados.
+Este diretório armazena os resultados usados por `/poção` e os manuais fixos
+do grupo `/iniciar`. O bot não consulta o Discohook, mensagens antigas ou
+serviços externos para carregar esses conteúdos.
 
-## Estrutura
+## Resultados de poções (`/poção`)
+
+### Estrutura dos resultados
 
 Crie uma pasta sem acentos, espaços ou caracteres especiais para cada
 resultado:
@@ -14,8 +16,12 @@ data/
 ├── pocao_comum/
 │   ├── resultado.json
 │   └── pocao_comum.gif
-└── pocao_mitica/
-    └── resultado.json
+├── pocao_mitica/
+│   └── resultado.json
+└── manuais/
+    ├── README.md
+    ├── manual.json
+    └── iniciar_pocao.gif
 ```
 
 O nome `resultado.json` é obrigatório. A imagem local só é necessária quando
@@ -26,7 +32,7 @@ Cada pasta válida participa do sorteio com a mesma chance. Pastas novas são
 descobertas automaticamente a cada uso do comando: não é preciso alterar uma
 lista Python nem sincronizar `/poção` novamente.
 
-## Exportação pelo Discohook
+### Exportação pelo Discohook
 
 1. Monte visualmente uma única embed no Discohook.
 2. Exporte o payload JSON completo.
@@ -80,7 +86,7 @@ O bot reconstrói `embeds[0]` com `discord.Embed.from_dict()`. O array
 `blob:https://discohook.app/...` são temporários e são ignorados. A mídia deve
 existir localmente.
 
-## Associação da imagem local
+### Associação da imagem local
 
 Para `attachment://pocao_comum.gif`, a procura segue esta ordem:
 
@@ -97,7 +103,7 @@ evitar uma associação incorreta.
 Uma imagem com URL permanente `http://` ou `https://` não precisa de arquivo
 local e continua apontando para essa URL.
 
-## Adicionar outra poção
+### Adicionar outra poção
 
 Crie, por exemplo:
 
@@ -115,9 +121,55 @@ JSON ausente, inválido ou sem uma primeira embed válida é registrado no
 console e ignorado sem afetar as outras pastas. O mesmo ocorre quando um
 `attachment://` não pode ser associado a uma imagem local.
 
-## Sincronização do comando
+## Manuais de início (`/iniciar`)
 
-`/poção` é sincronizado globalmente com o Discord quando o bot inicia. Essa
-propagação pode levar algum tempo na primeira execução. A sincronização
-registra o comando; ela não envia os JSONs ou as imagens, e não precisa ser
-repetida quando uma pasta de resultado é adicionada.
+Os manuais ficam dentro de `data/manuais/` e são independentes do sorteio. O
+subcomando `/iniciar poção` sempre carrega:
+
+```text
+data/manuais/manual.json
+```
+
+O arquivo deve ser o payload completo exportado pelo Discohook, salvo em
+UTF-8. O bot reconstrói `embeds[0]`, quando essa primeira entrada é válida, e
+envia somente a embed do manual no mesmo canal, sem sortear um resultado. Não use
+`resultado.json` nessa pasta: esse nome pertence ao sistema de `/poção`.
+
+Quando a embed apontar para `attachment://`, coloque o GIF, PNG, JPG, JPEG ou
+WEBP na mesma pasta do `manual.json`. A procura prioriza o nome referenciado,
+depois uma correspondência equivalente após normalizar o nome e, por fim, a
+única imagem compatível da pasta. Se houver várias imagens ambíguas, o manual é
+considerado indisponível para evitar uma associação incorreta.
+
+URLs permanentes `http://` e `https://` não precisam de arquivo local. O array
+`attachments` exportado pode permanecer no JSON, mas URLs
+`blob:https://discohook.app/...` são temporárias e nunca são usadas em runtime.
+O bot também não depende de webhooks, mensagens ou IDs do Discord para
+reconstruir o manual.
+
+O passo a passo específico está no
+[guia do manual de poções](manuais/README.md).
+
+### Adicionar outro manual
+
+Para adicionar futuramente `/iniciar mineração`:
+
+1. crie `data/manuais/manual_mineracao.json` e coloque a mídia opcional na
+   pasta `data/manuais/`;
+2. adicione em `cogs/iniciar.py` um novo método decorado como subcomando do
+   grupo `iniciar`, fazendo-o carregar `manual_mineracao.json`;
+3. reinicie o bot para carregar e sincronizar a nova estrutura do comando.
+
+Reutilize o grupo `/iniciar`; cada atividade deve ser um subcomando e um JSON
+próprio dentro da mesma pasta `data/manuais/`.
+
+## Sincronização dos comandos
+
+`/poção` e o grupo `/iniciar` são sincronizados globalmente com o Discord
+quando o bot inicia. Essa propagação pode levar algum tempo depois que um novo
+comando ou subcomando é criado. A sincronização registra a estrutura dos
+comandos; ela não envia JSONs ou imagens.
+
+Adicionar ou alterar apenas o `manual.json` ou a mídia de um manual já
+existente não exige nova sincronização. Uma nova sincronização é necessária
+quando um novo subcomando, como `/iniciar mineração`, é acrescentado ao código.
