@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 DIRETORIO_RESULTADOS = (
     Path(__file__).resolve().parent.parent
     / "data"
-    / "resultados_pocoes"
 )
 NOME_ARQUIVO_RESULTADO = "resultado.json"
 EXTENSOES_IMAGEM = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
