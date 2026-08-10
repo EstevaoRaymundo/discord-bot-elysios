@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 EXTENSOES = (
     "cogs.iniciativa",
+    "cogs.pocoes",
     "cogs.rolagem",
 )
 
@@ -45,6 +46,9 @@ class ElysiosBot(commands.Bot):
                     extensao
                 )
                 raise
+
+        await self.tree.sync()
+        logger.info("Application Commands sincronizados com o Discord.")
 
 
 bot = ElysiosBot(
