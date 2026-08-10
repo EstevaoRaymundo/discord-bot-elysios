@@ -10,7 +10,7 @@ bot.py                 Ponto de entrada e eventos gerais
 cogs/iniciativa.py     Comandos !turnos
 cogs/pocoes.py         Slash command /poção
 cogs/rolagem.py        Listener de mensagens de rolagem
-data/resultados_pocoes/ Resultados e mídias locais das poções
+data/                  Resultados e mídias locais das poções
 utils/dados.py         Parser e cálculo das rolagens
 tests/                 Testes automatizados
 ```
@@ -52,7 +52,7 @@ resultados válidos e responde no mesmo canal.
 Cada resultado fica em uma subpasta própria:
 
 ```text
-data/resultados_pocoes/
+data/
 └── pocao_comum/
     ├── resultado.json
     └── pocao_comum.gif       Opcional; necessário para attachment://
@@ -91,7 +91,7 @@ localmente ao lado de `resultado.json`.
 Para adicionar outra poção, basta criar uma nova subpasta com seu
 `resultado.json` e, quando necessário, sua mídia. As pastas são descobertas
 automaticamente, sem lista Python. Consulte o
-[guia dos resultados](data/resultados_pocoes/README.md) para o processo de
+[guia dos resultados](data/README.md) para o processo de
 exportação e um exemplo completo.
 
 Na inicialização, o bot carrega os Cogs e sincroniza globalmente sua árvore de
