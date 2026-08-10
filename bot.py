@@ -20,6 +20,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 EXTENSOES = (
+    "cogs.iniciar",
     "cogs.iniciativa",
     "cogs.pocoes",
     "cogs.rolagem",
