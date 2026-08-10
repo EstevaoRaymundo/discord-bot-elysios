@@ -1,7 +1,7 @@
 # Bot Elysios
 
 Bot de Discord com rolagem de dados por mensagens, gerenciamento de ordens de
-turnos, resultados de poções e manuais de atividades.
+turnos, manuais, testes de estabilidade e resultados de poções.
 
 ## Estrutura
 
@@ -9,7 +9,7 @@ turnos, resultados de poções e manuais de atividades.
 bot.py                 Ponto de entrada e eventos gerais
 cogs/iniciativa.py     Comandos !turnos
 cogs/iniciar.py        Grupo de manuais /iniciar
-cogs/pocoes.py         Slash command /poção
+cogs/pocoes.py         Slash commands /poção e /estabilidade
 cogs/rolagem.py        Listener de mensagens de rolagem
 data/                  Resultados, manuais e mídias locais
 utils/dados.py         Parser e cálculo das rolagens
@@ -136,16 +136,52 @@ acrescentar em `cogs/iniciar.py` um novo método/subcomando no grupo `iniciar`,
 apontando para esse arquivo. Reutilize o grupo existente; não crie um comando
 solto como `/iniciar-mineração`.
 
+## Estabilidade das poções
+
+`/estabilidade` é um slash command independente que determina se a poção ficou
+estável ou instável. Ele envia somente a embed do resultado sorteado, sem
+alterar o manual de `/iniciar poção` nem o sorteio de raridade de `/poção`.
+
+O fluxo recomendado permanece separado em três etapas:
+
+1. `/iniciar poção` mostra o manual de criação;
+2. `/estabilidade` sorteia Estável ou Instável;
+3. `/poção` realiza o sistema existente de resultado e raridade.
+
+Os dois resultados obrigatórios ficam separados:
+
+```text
+data/estabilidade/
+├── estavel/
+│   ├── resultado.json
+│   └── estavel.gif       Opcional; necessário para attachment://
+└── instavel/
+    ├── resultado.json
+    └── instavel.gif      Opcional; necessário para attachment://
+```
+
+Cada `resultado.json` deve conter o payload completo exportado pelo Discohook,
+salvo em UTF-8. Antes de sortear, o bot valida os dois resultados e suas mídias.
+Se qualquer um estiver indisponível ou inválido, não há sorteio e o jogador
+recebe uma mensagem amigável.
+
+Com ambos válidos, a escolha é feita entre os dois nomes fixos `estavel` e
+`instavel`. Assim, a chance é sempre exatamente 50% para Estável e 50% para
+Instável, independentemente da quantidade de arquivos nas pastas. Consulte o
+[guia dos resultados de estabilidade](data/estabilidade/README.md) para
+preparar os JSONs e as mídias locais.
+
 ## Sincronização dos slash commands
 
 Na inicialização, o bot carrega os Cogs e sincroniza globalmente uma única
-árvore de Application Commands. Ao adicionar `/iniciar poção` ou outro novo
-subcomando, reinicie o bot e aguarde a propagação da sincronização pelo
-Discord.
+árvore de Application Commands. Ao adicionar `/estabilidade`, `/iniciar poção`
+ou outro novo subcomando, reinicie o bot e aguarde a propagação da
+sincronização pelo Discord.
 
 Adicionar ou editar somente o `manual.json`, GIF, PNG, JPG, JPEG ou WEBP de um
 manual já registrado não muda a estrutura dos comandos e não exige nova
-sincronização. O mesmo vale para os arquivos de resultados de `/poção`.
+sincronização. O mesmo vale para os arquivos de resultados de `/poção` e
+`/estabilidade`.
 
 ## Testes
 
