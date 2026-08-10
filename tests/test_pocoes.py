@@ -349,7 +349,7 @@ class CarregamentoPocoesTests(
         }
         self.assertEqual(descricoes, {"Comum", "Divina"})
 
-    def test_diretorio_de_manuais_nao_participa_do_sorteio(self):
+    def test_diretorios_reservados_nao_participam_do_sorteio(self):
         self.criar_resultado(
             "pocao_comum",
             payload=criar_payload(descricao="Comum"),
@@ -360,10 +360,23 @@ class CarregamentoPocoesTests(
             json.dumps(criar_payload(descricao="Manual")),
             encoding="utf-8",
         )
+        pasta_estabilidade = self.diretorio / "estabilidade"
+        pasta_estabilidade.mkdir(parents=True)
+        (pasta_estabilidade / "resultado.json").write_text(
+            json.dumps(criar_payload(descricao="Não é uma raridade")),
+            encoding="utf-8",
+        )
+        (pasta_estabilidade / "estavel").mkdir()
+        (pasta_estabilidade / "instavel").mkdir()
         cog = self.criar_cog()
 
+        pastas = cog.encontrar_pastas()
         resultados = cog.carregar_resultados()
 
+        self.assertEqual(
+            [pasta.name for pasta in pastas],
+            ["pocao_comum"],
+        )
         self.assertEqual(len(resultados), 1)
         self.assertEqual(resultados[0].pasta.name, "pocao_comum")
 

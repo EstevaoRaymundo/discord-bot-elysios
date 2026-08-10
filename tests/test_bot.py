@@ -36,6 +36,7 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(bot.bot.get_cog("Turnos"))
         self.assertIsNotNone(bot.bot.get_cog("Rolagem"))
         self.assertIsNotNone(bot.bot.get_cog("Pocoes"))
+        self.assertIsNotNone(bot.bot.get_cog("Estabilidade"))
         self.assertIsNotNone(bot.bot.get_cog("Iniciar"))
         self.assertIs(bot.bot.tree, arvore_original)
 
@@ -50,8 +51,24 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
             "iniciar poção",
         )
         self.assertIsNotNone(bot.bot.tree.get_command("poção"))
+        comando_estabilidade = bot.bot.tree.get_command("estabilidade")
+        self.assertIsInstance(
+            comando_estabilidade,
+            app_commands.Command,
+        )
+        self.assertEqual(comando_estabilidade.parameters, [])
+        self.assertEqual(
+            comando_estabilidade.description,
+            "Determina se a poção criada ficou estável ou instável.",
+        )
+        self.assertEqual(
+            comando_estabilidade.to_dict(bot.bot.tree)["options"],
+            [],
+        )
         self.assertIsNone(bot.bot.tree.get_command("iniciar-poção"))
+        self.assertIsNone(bot.bot.tree.get_command("iniciar-estabilidade"))
         self.assertIsNone(bot.bot.get_command("iniciar"))
+        self.assertIsNone(bot.bot.get_command("estabilidade"))
         self.assertIsNone(bot.bot.get_command("poção"))
         self.assertIsNone(bot.bot.get_command("pocao"))
         sincronizar.assert_awaited_once_with()
