@@ -1,8 +1,8 @@
 # Dados locais do bot
 
-Este diretório armazena os resultados usados por `/poção` e os manuais fixos
-do grupo `/iniciar`. O bot não consulta o Discohook, mensagens antigas ou
-serviços externos para carregar esses conteúdos.
+Este diretório armazena os resultados usados por `/poção` e `/estabilidade`,
+além dos manuais fixos do grupo `/iniciar`. O bot não consulta o Discohook,
+mensagens antigas ou serviços externos para carregar esses conteúdos.
 
 ## Resultados de poções (`/poção`)
 
@@ -18,6 +18,11 @@ data/
 │   └── pocao_comum.gif
 ├── pocao_mitica/
 │   └── resultado.json
+├── estabilidade/
+│   ├── estavel/
+│   │   └── resultado.json
+│   └── instavel/
+│       └── resultado.json
 └── manuais/
     ├── README.md
     ├── manual.json
@@ -121,6 +126,38 @@ JSON ausente, inválido ou sem uma primeira embed válida é registrado no
 console e ignorado sem afetar as outras pastas. O mesmo ocorre quando um
 `attachment://` não pode ser associado a uma imagem local.
 
+## Resultados de estabilidade (`/estabilidade`)
+
+O comando usa exatamente dois resultados obrigatórios e independentes dos
+resultados de `/poção`:
+
+```text
+data/estabilidade/
+├── estavel/
+│   ├── resultado.json
+│   └── estavel.gif
+└── instavel/
+    ├── resultado.json
+    └── instavel.gif
+```
+
+Salve a embed Estável em `estabilidade/estavel/resultado.json` e a embed
+Instável em `estabilidade/instavel/resultado.json`. Os dois arquivos seguem o
+mesmo formato de payload do Discohook descrito acima e devem ser salvos em
+UTF-8. A mídia local só é necessária quando a embed usa `attachment://`.
+
+O bot valida os dois JSONs e seus attachments antes de realizar qualquer
+sorteio. Se um deles estiver ausente ou inválido, `/estabilidade` fica
+temporariamente indisponível; o resultado válido não é usado sozinho. Quando
+ambos estão válidos, a escolha ocorre entre os nomes fixos `estavel` e
+`instavel`, garantindo exatamente 50% de chance para cada um. A quantidade de
+arquivos ou pastas nunca determina essa probabilidade.
+
+`data/estabilidade/` é reservado para esse sistema e não participa do pool de
+resultados de `/poção`. Consulte o
+[guia de estabilidade](estabilidade/README.md) para preparar os dois
+resultados.
+
 ## Manuais de início (`/iniciar`)
 
 Os manuais ficam dentro de `data/manuais/` e são independentes do sorteio. O
@@ -165,11 +202,12 @@ próprio dentro da mesma pasta `data/manuais/`.
 
 ## Sincronização dos comandos
 
-`/poção` e o grupo `/iniciar` são sincronizados globalmente com o Discord
-quando o bot inicia. Essa propagação pode levar algum tempo depois que um novo
-comando ou subcomando é criado. A sincronização registra a estrutura dos
-comandos; ela não envia JSONs ou imagens.
+`/poção`, `/estabilidade` e o grupo `/iniciar` são sincronizados globalmente
+com o Discord quando o bot inicia. Essa propagação pode levar algum tempo
+depois que um novo comando ou subcomando é criado. A sincronização registra a
+estrutura dos comandos; ela não envia JSONs ou imagens.
 
-Adicionar ou alterar apenas o `manual.json` ou a mídia de um manual já
-existente não exige nova sincronização. Uma nova sincronização é necessária
-quando um novo subcomando, como `/iniciar mineração`, é acrescentado ao código.
+Adicionar ou alterar apenas um JSON ou uma mídia de um resultado/manual já
+registrado não exige nova sincronização. Uma nova sincronização é necessária
+quando a estrutura dos slash commands muda, como ao acrescentar um novo
+subcomando `/iniciar mineração`.
