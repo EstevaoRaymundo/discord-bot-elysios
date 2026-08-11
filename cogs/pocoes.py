@@ -16,6 +16,7 @@ from utils.discohook import (
     extrair_embed,
     listar_imagens,
     localizar_attachment,
+    preparar_previa_embed,
     preparar_envio_embed,
     resolver_imagem,
     validar_embed,
@@ -246,28 +247,12 @@ class Pocoes(commands.Cog):
     async def pocao(self, interaction: discord.Interaction) -> None:
         """Sorteia e envia um dos resultados válidos no canal atual."""
 
-        try:
-            await interaction.response.defer(thinking=True)
-        except discord.Forbidden:
-            logger.warning(
-                "[POÇÕES] Sem permissão para reconhecer o comando no canal %s.",
-                interaction.channel,
-            )
-            return
-        except discord.HTTPException:
-            logger.exception(
-                "[POÇÕES] Não foi possível reconhecer o comando a tempo."
-            )
-            return
-
         resultados = self.carregar_resultados()
 
         if not resultados:
             try:
-                await interaction.edit_original_response(
-                    content=(
-                        "❌ Nenhum resultado de poção está cadastrado no momento."
-                    )
+                await interaction.response.send_message(
+                    "❌ Nenhum resultado de poção está cadastrado no momento."
                 )
             except discord.Forbidden:
                 logger.warning(
@@ -285,12 +270,17 @@ class Pocoes(commands.Cog):
 
         try:
             embed, arquivo = self.preparar_envio(resultado)
-            argumentos = {"embed": embed}
 
-            if arquivo is not None:
-                argumentos["attachments"] = [arquivo]
+            if arquivo is None:
+                await interaction.response.send_message(embed=embed)
+            else:
+                previa = preparar_previa_embed(embed)
+                await interaction.response.send_message(embed=previa)
 
-            await interaction.edit_original_response(**argumentos)
+                await interaction.edit_original_response(
+                    embed=embed,
+                    attachments=[arquivo],
+                )
         except discord.Forbidden:
             logger.warning(
                 "[POÇÕES] Sem permissão para enviar o resultado no canal %s.",
