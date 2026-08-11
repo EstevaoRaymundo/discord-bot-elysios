@@ -457,7 +457,7 @@ class ComandoPocaoTests(
         self.assertNotIn("embed", chamada.kwargs)
         self.assertNotIn("file", chamada.kwargs)
 
-    async def test_callback_envia_embed_http_no_mesmo_response(self):
+    async def test_callback_envia_somente_embed_http_no_mesmo_response(self):
         self.criar_resultado(
             "pocao_http",
             payload=criar_payload(
@@ -471,10 +471,7 @@ class ComandoPocaoTests(
 
         interaction.response.send_message.assert_awaited_once()
         chamada = interaction.response.send_message.await_args
-        self.assertEqual(
-            self.obter_content(chamada),
-            "⚗️ <@123>, seu resultado foi:",
-        )
+        self.assertIsNone(self.obter_content(chamada))
         self.assertIsInstance(chamada.kwargs["embed"], discord.Embed)
         self.assertEqual(
             chamada.kwargs["embed"].image.url,
@@ -500,6 +497,7 @@ class ComandoPocaoTests(
         arquivo = chamada.kwargs["file"]
 
         try:
+            self.assertIsNone(self.obter_content(chamada))
             self.assertIsInstance(arquivo, discord.File)
             self.assertEqual(
                 chamada.kwargs["embed"].image.url,
