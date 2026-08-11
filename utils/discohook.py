@@ -307,3 +307,30 @@ def preparar_envio_embed(
         raise
 
     return embed, arquivo
+
+
+def preparar_previa_embed(embed_original: discord.Embed) -> discord.Embed:
+    """Remove URLs locais para permitir uma resposta inicial sem upload."""
+
+    embed_data = deepcopy(embed_original.to_dict())
+
+    for nome_secao, nome_url, url_obrigatoria in CAMPOS_URL_MIDIA:
+        secao = embed_data.get(nome_secao)
+
+        if not isinstance(secao, dict):
+            continue
+
+        url = secao.get(nome_url)
+
+        if not (
+            isinstance(url, str)
+            and urlparse(url).scheme.casefold() == "attachment"
+        ):
+            continue
+
+        if url_obrigatoria:
+            embed_data.pop(nome_secao, None)
+        else:
+            secao.pop(nome_url, None)
+
+    return discord.Embed.from_dict(embed_data)
