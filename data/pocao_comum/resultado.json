@@ -3,7 +3,7 @@
     {
       "description": "# ﹒だ﹒ ⸺ ﹒ ' 𝐏oção﹒ ⚗️ ›\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝\n\n﹒＞＜﹐ Sua preparação foi concluída com sucesso. Embora simples, sua poção apresenta boa estabilidade e está pronta para ser utilizada.\n\n✦ Qualidade: **Comum**\n✦ Buff Bônus: **+5%** para distribuir entre as habilidades da poção.\n✦ Habilidades Extras: **Nenhuma.**\n✦ Duração: **2 turnos após o consumo.**\n\n﹒＞＜﹐ Retire sua ficha no canal **#moldes**, preencha todas as informações da poção e, após concluí-la, envie-a no canal **#fichas-poções**.\n\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝",
       "image": {
-        "url": "attachment://pocao_comum.png"
+        "url": "attachment://pocao_comum.jpg"
       },
       "color": 15105570
     }
@@ -11,9 +11,9 @@
   "attachments": [
     {
       "id": "611989451989515",
-      "filename": "pocao_comum.png",
-      "content_type": "image/png",
-      "size": 3273729,
+      "filename": "pocao_comum.jpg",
+      "content_type": "image/jpeg",
+      "size": 191756,
       "url": "blob:https://discohook.app/1235f66c-28d0-4e24-8b3b-52c7b7786471",
       "proxy_url": "http://localhost",
       "placement_count": 1
