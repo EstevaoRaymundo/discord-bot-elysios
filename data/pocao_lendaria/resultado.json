@@ -1,0 +1,22 @@
+{
+  "embeds": [
+    {
+      "description": "# ﹒だ﹒ ⸺ ﹒ ' 𝐏oção﹒ ⚗️ ›\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝\n\n﹒＞＜﹐ Sua alquimia alcançou um nível excepcional. A poção emite uma aura intensa, demonstrando que seus efeitos ultrapassam os limites de uma preparação comum.\n\n✦ Qualidade: **Lendária**\n✦ Buff Bônus: **+25%** para distribuir entre as habilidades da poção.\n✦ Habilidades Extras: **+1 Habilidades.**\n✦ Duração: **5 turnos após o consumo.**\n\n﹒＞＜﹐ Retire sua ficha no canal **#moldes**, preencha todas as informações da poção e, após concluí-la, envie-a no canal **#fichas-poções**.\n\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝",
+      "image": {
+        "url": "attachment://pocao_lendaria.jpg"
+      },
+      "color": 16064092
+    }
+  ],
+  "attachments": [
+    {
+      "id": "211377635796237",
+      "filename": "pocao_lendaria.jpg",
+      "content_type": "image/jpeg",
+      "size": 1496602,
+      "url": "blob:https://discohook.app/35a6e25a-dab8-47ad-b8b1-affdc4d54554",
+      "proxy_url": "http://localhost",
+      "placement_count": 1
+    }
+  ]
+}

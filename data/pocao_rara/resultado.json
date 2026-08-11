@@ -1,0 +1,22 @@
+{
+  "embeds": [
+    {
+      "description": "# ﹒だ﹒ ⸺ ﹒ ' 𝐏oção﹒ ⚗️ ›\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝\n\n﹒＞＜﹐ Uma reação alquímica quase perfeita. A energia dos ingredientes foi preservada, tornando a poção muito superior às preparações comuns.\n\n✦ Qualidade: **Rara**\n✦ Buff Bônus: **+20%** para distribuir entre as habilidades da poção.\n✦ Habilidades Extras: **Nenhuma.**\n✦ Duração: **4 turnos após o consumo.**\n\n﹒＞＜﹐ Retire sua ficha no canal **#moldes**, preencha todas as informações da poção e, após concluí-la, envie-a no canal **#fichas-poções**.\n\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝",
+      "image": {
+        "url": "attachment://pocao_rara.jpg"
+      },
+      "color": 9047841
+    }
+  ],
+  "attachments": [
+    {
+      "id": "723285495491528",
+      "filename": "pocao_rara.jpg",
+      "content_type": "image/jpeg",
+      "size": 1558280,
+      "url": "blob:https://discohook.app/092d09cb-d843-458e-a8bd-c42c9f53a72c",
+      "proxy_url": "http://localhost",
+      "placement_count": 1
+    }
+  ]
+}
