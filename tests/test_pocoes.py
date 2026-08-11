@@ -8,7 +8,13 @@ from unittest.mock import AsyncMock, patch
 
 import discord
 
-from cogs.pocoes import DIRETORIO_RESULTADOS, Pocoes, extrair_embed
+from cogs.pocoes import (
+    DIRETORIO_RESULTADOS,
+    MENSAGEM_POCOES_INDISPONIVEL,
+    PESOS_RARIDADES,
+    Pocoes,
+    extrair_embed,
+)
 from utils.discohook import preparar_previa_embed
 
 
@@ -92,6 +98,27 @@ class DiretorioTemporarioMixin:
             (pasta / nome_imagem).write_bytes(b"imagem-de-teste")
 
         return pasta
+
+    def criar_raridades_obrigatorias(
+        self,
+        *,
+        url_imagem: Optional[str] = None,
+        nome_imagem: Optional[str] = None,
+        omitir: Optional[str] = None,
+    ) -> None:
+        for nome_raridade in PESOS_RARIDADES:
+            if nome_raridade == omitir:
+                continue
+
+            imagens = (nome_imagem,) if nome_imagem is not None else ()
+            self.criar_resultado(
+                nome_raridade,
+                payload=criar_payload(
+                    descricao=nome_raridade,
+                    url_imagem=url_imagem,
+                ),
+                imagens=imagens,
+            )
 
 
 class ExtrairEmbedTests(unittest.TestCase):
@@ -419,26 +446,72 @@ class CarregamentoPocoesTests(
         with self.assertLogs("cogs.pocoes", level="WARNING"):
             self.assertEqual(cog.carregar_resultados(), [])
 
-    def test_sorteio_delega_para_random_choice(self):
-        self.criar_resultado(
-            "pocao_a",
-            payload=criar_payload(descricao="A"),
+    def test_pesos_oficiais_somam_cem(self):
+        self.assertEqual(
+            PESOS_RARIDADES,
+            {
+                "pocao_comum": 50,
+                "pocao_incomum": 25,
+                "pocao_rara": 15,
+                "pocao_lendaria": 8,
+                "pocao_mitica": 2,
+            },
         )
+        self.assertEqual(sum(PESOS_RARIDADES.values()), 100)
+
+    def test_resultados_obrigatorios_ignoram_pasta_sem_peso(self):
+        self.criar_raridades_obrigatorias()
         self.criar_resultado(
-            "pocao_b",
-            payload=criar_payload(descricao="B"),
+            "pocao_divina",
+            payload=criar_payload(descricao="Sem peso"),
         )
         cog = self.criar_cog()
-        resultados = cog.carregar_resultados()
+
+        resultados = cog.carregar_resultados_obrigatorios()
+
+        self.assertIsNotNone(resultados)
+        self.assertEqual(tuple(resultados), tuple(PESOS_RARIDADES))
+        self.assertNotIn("pocao_divina", resultados)
+
+    def test_soma_invalida_impede_carregamento(self):
+        cog = self.criar_cog()
+
+        with patch.dict(PESOS_RARIDADES, {"pocao_mitica": 3}):
+            with self.assertLogs("cogs.pocoes", level="ERROR") as logs:
+                resultados = cog.carregar_resultados_obrigatorios()
+
+        self.assertIsNone(resultados)
+        self.assertIn("esperado: 100", "\n".join(logs.output))
+
+    def test_uma_raridade_ausente_invalida_o_conjunto_completo(self):
+        self.criar_raridades_obrigatorias(omitir="pocao_mitica")
+        cog = self.criar_cog()
+
+        with self.assertLogs("cogs.pocoes", level="ERROR") as logs:
+            resultados = cog.carregar_resultados_obrigatorios()
+
+        self.assertIsNone(resultados)
+        self.assertIn("pocao_mitica", "\n".join(logs.output))
+
+    def test_sorteio_delega_para_random_choices_com_pesos_oficiais(self):
+        self.criar_raridades_obrigatorias()
+        cog = self.criar_cog()
+        resultados = cog.carregar_resultados_obrigatorios()
+
+        self.assertIsNotNone(resultados)
 
         with patch(
-            "cogs.pocoes.random.choice",
-            return_value=resultados[1],
-        ) as choice:
+            "cogs.pocoes.random.choices",
+            return_value=["pocao_mitica"],
+        ) as choices:
             selecionado = cog.sortear_resultado(resultados)
 
-        self.assertIs(selecionado, resultados[1])
-        choice.assert_called_once_with(resultados)
+        self.assertIs(selecionado, resultados["pocao_mitica"])
+        choices.assert_called_once_with(
+            tuple(PESOS_RARIDADES),
+            weights=tuple(PESOS_RARIDADES.values()),
+            k=1,
+        )
 
 
 class ComandoPocaoTests(
@@ -477,24 +550,24 @@ class ComandoPocaoTests(
         cog = self.criar_cog()
         interaction = self.criar_interaction()
 
-        await Pocoes.pocao.callback(cog, interaction)
+        with patch("cogs.pocoes.random.choices") as choices:
+            with self.assertLogs("cogs.pocoes", level="ERROR"):
+                await Pocoes.pocao.callback(cog, interaction)
 
+        choices.assert_not_called()
         interaction.response.send_message.assert_awaited_once()
         interaction.edit_original_response.assert_not_awaited()
         chamada = interaction.response.send_message.await_args
         self.assertEqual(
             self.obter_content(chamada),
-            "❌ Nenhum resultado de poção está cadastrado no momento.",
+            MENSAGEM_POCOES_INDISPONIVEL,
         )
         self.assertNotIn("embed", chamada.kwargs)
         self.assertNotIn("attachments", chamada.kwargs)
 
     async def test_callback_envia_embed_http_diretamente(self):
-        self.criar_resultado(
-            "pocao_http",
-            payload=criar_payload(
-                url_imagem="https://example.com/resultado.gif"
-            ),
+        self.criar_raridades_obrigatorias(
+            url_imagem="https://example.com/resultado.gif",
         )
         cog = self.criar_cog()
         interaction = self.criar_interaction()
@@ -513,12 +586,9 @@ class ComandoPocaoTests(
         self.assertIsNone(chamada.kwargs.get("attachments"))
 
     async def test_callback_envia_attachment_com_nome_correspondente(self):
-        self.criar_resultado(
-            "pocao_attachment",
-            payload=criar_payload(
-                url_imagem="attachment://nome-do-discohook.gif"
-            ),
-            imagens=("resultado_local.gif",),
+        self.criar_raridades_obrigatorias(
+            url_imagem="attachment://nome-do-discohook.gif",
+            nome_imagem="resultado_local.gif",
         )
         cog = self.criar_cog()
         interaction = self.criar_interaction()
@@ -543,12 +613,9 @@ class ComandoPocaoTests(
             arquivo.close()
 
     async def test_erro_de_envio_e_registrado_sem_propagar(self):
-        self.criar_resultado(
-            "pocao_attachment",
-            payload=criar_payload(
-                url_imagem="attachment://resultado.gif"
-            ),
-            imagens=("resultado.gif",),
+        self.criar_raridades_obrigatorias(
+            url_imagem="attachment://resultado.gif",
+            nome_imagem="resultado.gif",
         )
         cog = self.criar_cog()
         interaction = self.criar_interaction()
