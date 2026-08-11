@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 import discord
 
 from cogs.pocoes import DIRETORIO_RESULTADOS, Pocoes, extrair_embed
+from utils.discohook import preparar_previa_embed
 
 
 DESCRICAO_UNICODE = (
@@ -125,6 +126,35 @@ class ExtrairEmbedTests(unittest.TestCase):
         for dados in casos:
             with self.subTest(dados=dados):
                 self.assertIsNone(extrair_embed(dados))
+
+    def test_previa_remove_attachment_e_preserva_midias_remotas(self):
+        embed = discord.Embed.from_dict(
+            {
+                "description": "Prévia imediata",
+                "image": {"url": "attachment://arte.jpg"},
+                "thumbnail": {"url": "https://example.com/miniatura.jpg"},
+                "author": {
+                    "name": "Alquimista",
+                    "icon_url": "attachment://arte.jpg",
+                },
+                "footer": {
+                    "text": "Rodapé",
+                    "icon_url": "attachment://arte.jpg",
+                },
+            }
+        )
+
+        previa = preparar_previa_embed(embed)
+
+        self.assertFalse(previa.image)
+        self.assertEqual(
+            previa.thumbnail.url,
+            "https://example.com/miniatura.jpg",
+        )
+        self.assertEqual(previa.author.name, "Alquimista")
+        self.assertIsNone(previa.author.icon_url)
+        self.assertEqual(previa.footer.text, "Rodapé")
+        self.assertIsNone(previa.footer.icon_url)
 
 
 class CarregamentoPocoesTests(
@@ -426,7 +456,7 @@ class ComandoPocaoTests(
         return SimpleNamespace(
             user=SimpleNamespace(mention="<@123>"),
             channel="canal-teste",
-            response=SimpleNamespace(defer=AsyncMock()),
+            response=SimpleNamespace(send_message=AsyncMock()),
             edit_original_response=AsyncMock(),
         )
 
@@ -449,9 +479,9 @@ class ComandoPocaoTests(
 
         await Pocoes.pocao.callback(cog, interaction)
 
-        interaction.response.defer.assert_awaited_once_with(thinking=True)
-        interaction.edit_original_response.assert_awaited_once()
-        chamada = interaction.edit_original_response.await_args
+        interaction.response.send_message.assert_awaited_once()
+        interaction.edit_original_response.assert_not_awaited()
+        chamada = interaction.response.send_message.await_args
         self.assertEqual(
             self.obter_content(chamada),
             "❌ Nenhum resultado de poção está cadastrado no momento.",
@@ -459,7 +489,7 @@ class ComandoPocaoTests(
         self.assertNotIn("embed", chamada.kwargs)
         self.assertNotIn("attachments", chamada.kwargs)
 
-    async def test_callback_envia_somente_embed_http_apos_defer(self):
+    async def test_callback_envia_embed_http_diretamente(self):
         self.criar_resultado(
             "pocao_http",
             payload=criar_payload(
@@ -471,9 +501,9 @@ class ComandoPocaoTests(
 
         await Pocoes.pocao.callback(cog, interaction)
 
-        interaction.response.defer.assert_awaited_once_with(thinking=True)
-        interaction.edit_original_response.assert_awaited_once()
-        chamada = interaction.edit_original_response.await_args
+        interaction.response.send_message.assert_awaited_once()
+        interaction.edit_original_response.assert_not_awaited()
+        chamada = interaction.response.send_message.await_args
         self.assertIsNone(self.obter_content(chamada))
         self.assertIsInstance(chamada.kwargs["embed"], discord.Embed)
         self.assertEqual(
@@ -495,16 +525,18 @@ class ComandoPocaoTests(
 
         await Pocoes.pocao.callback(cog, interaction)
 
-        interaction.response.defer.assert_awaited_once_with(thinking=True)
+        interaction.response.send_message.assert_awaited_once()
         interaction.edit_original_response.assert_awaited_once()
-        chamada = interaction.edit_original_response.await_args
-        arquivo = chamada.kwargs["attachments"][0]
+        chamada_inicial = interaction.response.send_message.await_args
+        chamada_final = interaction.edit_original_response.await_args
+        previa = chamada_inicial.kwargs["embed"]
+        arquivo = chamada_final.kwargs["attachments"][0]
 
         try:
-            self.assertIsNone(self.obter_content(chamada))
+            self.assertFalse(previa.image)
             self.assertIsInstance(arquivo, discord.File)
             self.assertEqual(
-                chamada.kwargs["embed"].image.url,
+                chamada_final.kwargs["embed"].image.url,
                 f"attachment://{arquivo.filename}",
             )
         finally:
@@ -512,10 +544,11 @@ class ComandoPocaoTests(
 
     async def test_erro_de_envio_e_registrado_sem_propagar(self):
         self.criar_resultado(
-            "pocao_http",
+            "pocao_attachment",
             payload=criar_payload(
-                url_imagem="https://example.com/resultado.gif"
+                url_imagem="attachment://resultado.gif"
             ),
+            imagens=("resultado.gif",),
         )
         cog = self.criar_cog()
         interaction = self.criar_interaction()
@@ -527,7 +560,7 @@ class ComandoPocaoTests(
         with self.assertLogs("cogs.pocoes", level="ERROR"):
             await Pocoes.pocao.callback(cog, interaction)
 
-        interaction.response.defer.assert_awaited_once_with(thinking=True)
+        interaction.response.send_message.assert_awaited_once()
         interaction.edit_original_response.assert_awaited_once()
 
 
