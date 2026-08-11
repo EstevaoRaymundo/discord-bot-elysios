@@ -1,0 +1,22 @@
+{
+  "embeds": [
+    {
+      "description": "# ﹒だ﹒ ⸺ ﹒ ' 𝐏oção﹒ ⚗️ ›\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝\n\n﹒＞＜﹐ Sua mistura alcançou um resultado acima do esperado. Os ingredientes reagiram de maneira eficiente, produzindo uma poção de ótima qualidade.\n\n✦ Qualidade: **Incomum**\n✦ Buff Bônus: **+10%** para distribuir entre as habilidades da poção.\n✦ Habilidades Extras: **Nenhuma.**\n✦ Duração: **3 turnos após o consumo.**\n\n﹒＞＜﹐ Retire sua ficha no canal **#moldes**, preencha todas as informações da poção e, após concluí-la, envie-a no canal **#fichas-poções**.\n\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝",
+      "image": {
+        "url": "attachment://pocaoincomum.jpg"
+      },
+      "color": 16763904
+    }
+  ],
+  "attachments": [
+    {
+      "id": "372894751859677",
+      "filename": "pocaoincomum.jpg",
+      "content_type": "image/jpeg",
+      "size": 1600090,
+      "url": "blob:https://discohook.app/6540006d-b33d-4f3a-b039-74711c722826",
+      "proxy_url": "http://localhost",
+      "placement_count": 1
+    }
+  ]
+}
