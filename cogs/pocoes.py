@@ -246,12 +246,28 @@ class Pocoes(commands.Cog):
     async def pocao(self, interaction: discord.Interaction) -> None:
         """Sorteia e envia um dos resultados válidos no canal atual."""
 
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.Forbidden:
+            logger.warning(
+                "[POÇÕES] Sem permissão para reconhecer o comando no canal %s.",
+                interaction.channel,
+            )
+            return
+        except discord.HTTPException:
+            logger.exception(
+                "[POÇÕES] Não foi possível reconhecer o comando a tempo."
+            )
+            return
+
         resultados = self.carregar_resultados()
 
         if not resultados:
             try:
-                await interaction.response.send_message(
-                    "❌ Nenhum resultado de poção está cadastrado no momento."
+                await interaction.edit_original_response(
+                    content=(
+                        "❌ Nenhum resultado de poção está cadastrado no momento."
+                    )
                 )
             except discord.Forbidden:
                 logger.warning(
@@ -272,9 +288,9 @@ class Pocoes(commands.Cog):
             argumentos = {"embed": embed}
 
             if arquivo is not None:
-                argumentos["file"] = arquivo
+                argumentos["attachments"] = [arquivo]
 
-            await interaction.response.send_message(**argumentos)
+            await interaction.edit_original_response(**argumentos)
         except discord.Forbidden:
             logger.warning(
                 "[POÇÕES] Sem permissão para enviar o resultado no canal %s.",
