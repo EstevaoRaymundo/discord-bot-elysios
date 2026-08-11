@@ -5,7 +5,7 @@ import json
 import logging
 from pathlib import Path
 import random
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import discord
 from discord import app_commands
@@ -32,6 +32,16 @@ DIRETORIO_RESULTADOS = (
 DIRETORIO_ESTABILIDADE = DIRETORIO_RESULTADOS / "estabilidade"
 NOME_ARQUIVO_RESULTADO = "resultado.json"
 DIRETORIOS_RESERVADOS = frozenset({"estabilidade", "manuais"})
+PESOS_RARIDADES = {
+    "pocao_comum": 50,
+    "pocao_incomum": 25,
+    "pocao_rara": 15,
+    "pocao_lendaria": 8,
+    "pocao_mitica": 2,
+}
+MENSAGEM_POCOES_INDISPONIVEL = (
+    "❌ O sistema de poções não está disponível no momento."
+)
 RESULTADOS_ESTABILIDADE = ("estavel", "instavel")
 MENSAGEM_ESTABILIDADE_INDISPONIVEL = (
     "❌ O sistema de estabilidade não está disponível no momento."
@@ -220,13 +230,62 @@ class Pocoes(commands.Cog):
 
         return resultados
 
+    def carregar_resultados_obrigatorios(
+        self,
+    ) -> Optional[Dict[str, ResultadoPocao]]:
+        """Valida as cinco raridades sem redistribuir pesos ausentes."""
+
+        total_pesos = sum(PESOS_RARIDADES.values())
+
+        if total_pesos != 100:
+            logger.error(
+                "[POÇÕES] Soma dos pesos inválida: %s; esperado: 100.",
+                total_pesos,
+            )
+            return None
+
+        resultados: Dict[str, ResultadoPocao] = {}
+
+        for nome_raridade in PESOS_RARIDADES:
+            pasta = self.diretorio_resultados / nome_raridade
+
+            try:
+                resultado = self.carregar_resultado(pasta)
+            except Exception:
+                logger.exception(
+                    "[POÇÕES] Erro inesperado na raridade obrigatória: %s",
+                    nome_raridade,
+                )
+                continue
+
+            if resultado is None:
+                logger.error(
+                    "[POÇÕES] Raridade obrigatória indisponível: %s",
+                    nome_raridade,
+                )
+                continue
+
+            resultados[nome_raridade] = resultado
+
+        if len(resultados) != len(PESOS_RARIDADES):
+            return None
+
+        return resultados
+
     @staticmethod
     def sortear_resultado(
-        resultados: Sequence[ResultadoPocao],
+        resultados: Mapping[str, ResultadoPocao],
     ) -> ResultadoPocao:
-        """Mantém o sorteio uniforme isolado para aceitar pesos no futuro."""
+        """Sorteia uma das cinco raridades usando os pesos oficiais."""
 
-        return random.choice(resultados)
+        raridades = tuple(PESOS_RARIDADES)
+        pesos = tuple(PESOS_RARIDADES.values())
+        raridade_sorteada = random.choices(
+            raridades,
+            weights=pesos,
+            k=1,
+        )[0]
+        return resultados[raridade_sorteada]
 
     @staticmethod
     def preparar_envio(
@@ -247,12 +306,12 @@ class Pocoes(commands.Cog):
     async def pocao(self, interaction: discord.Interaction) -> None:
         """Sorteia e envia um dos resultados válidos no canal atual."""
 
-        resultados = self.carregar_resultados()
+        resultados = self.carregar_resultados_obrigatorios()
 
-        if not resultados:
+        if resultados is None:
             try:
                 await interaction.response.send_message(
-                    "❌ Nenhum resultado de poção está cadastrado no momento."
+                    MENSAGEM_POCOES_INDISPONIVEL
                 )
             except discord.Forbidden:
                 logger.warning(
