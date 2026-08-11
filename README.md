@@ -146,27 +146,32 @@ reenviados ao Discord a cada comando e aumentam diretamente o tempo de resposta.
 ## Sistema de poções (`/poção`)
 
 `/poção` é exclusivamente um slash command; não existem versões ou aliases
-com o prefixo `!`. Ao usá-lo, o bot escolhe com chances iguais um dos
-resultados válidos e responde no mesmo canal.
+com o prefixo `!`. A cada uso, o bot valida as cinco raridades obrigatórias,
+realiza um novo sorteio ponderado e responde no mesmo canal.
 
-Crie uma pasta sem acentos, espaços ou caracteres especiais para cada
-resultado. Dentro dela, o nome `resultado.json` é obrigatório:
+| Pasta | Raridade | Probabilidade |
+| --- | --- | ---: |
+| `pocao_comum` | Comum | 50% |
+| `pocao_incomum` | Incomum | 25% |
+| `pocao_rara` | Rara | 15% |
+| `pocao_lendaria` | Lendária | 8% |
+| `pocao_mitica` | Mítica | 2% |
+
+Cada pasta deve conter obrigatoriamente seu `resultado.json` e, quando a embed
+usar `attachment://`, a mídia correspondente:
 
 ```text
-data/pocao_divina/
+data/pocao_comum/
 ├── resultado.json
-└── pocao_divina.webp          Opcional; necessário para attachment://
+└── pocao_comum.jpg            Opcional; necessário para attachment://
 ```
 
-Cada pasta válida participa do sorteio com a mesma chance. Pastas novas são
-descobertas automaticamente a cada uso, portanto não é preciso alterar uma
-lista Python nem sincronizar `/poção` novamente.
-
-JSON ausente, inválido ou sem uma primeira embed válida é registrado no
-console e ignorado sem afetar as outras pastas. O mesmo ocorre quando um
-`attachment://` não pode ser associado a uma imagem local. Os diretórios
-`data/estabilidade/` e `data/manuais/` são reservados para seus próprios
-sistemas e não participam do pool de `/poção`.
+Se qualquer uma das cinco raridades estiver ausente ou inválida, o sorteio não
+acontece e o sistema informa indisponibilidade temporária, sem redistribuir sua
+probabilidade. Pastas extras não participam automaticamente: uma nova raridade
+precisa receber um peso explícito em `PESOS_RARIDADES`, em `cogs/pocoes.py`.
+Os pesos devem sempre somar 100. Os diretórios `data/estabilidade/` e
+`data/manuais/` continuam reservados para seus próprios sistemas.
 
 ## Manuais de início (`/iniciar`)
 
