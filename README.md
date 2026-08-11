@@ -138,6 +138,11 @@ Se não encontrar a imagem ou houver várias alternativas ambíguas, o conteúdo
 é considerado inválido para evitar uma associação incorreta. Os formatos
 locais aceitos são `.png`, `.jpg`, `.jpeg`, `.gif` e `.webp`.
 
+Para que os slash commands respondam rapidamente, mantenha as imagens estáticas
+com até cerca de 1200 pixels de largura e, de preferência, abaixo de 500 KB.
+Use JPEG ou WEBP para artes sem transparência; arquivos maiores precisam ser
+reenviados ao Discord a cada comando e aumentam diretamente o tempo de resposta.
+
 ## Sistema de poções (`/poção`)
 
 `/poção` é exclusivamente um slash command; não existem versões ou aliases
