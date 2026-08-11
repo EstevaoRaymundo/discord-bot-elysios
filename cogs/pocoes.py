@@ -269,12 +269,7 @@ class Pocoes(commands.Cog):
 
         try:
             embed, arquivo = self.preparar_envio(resultado)
-            argumentos = {
-                "content": (
-                    f"⚗️ {interaction.user.mention}, seu resultado foi:"
-                ),
-                "embed": embed,
-            }
+            argumentos = {"embed": embed}
 
             if arquivo is not None:
                 argumentos["file"] = arquivo
