@@ -1,15 +1,20 @@
+import asyncio
 import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
 from typing import Dict, Optional, Tuple
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
+import aiohttp
 import discord
 
 from cogs.pocoes import (
+    CDN_CACHE_FAIL_TTL,
+    CDN_CACHE_OK_TTL,
     DIRETORIO_RESULTADOS,
+    MENSAGEM_IMAGEM_POCAO_INDISPONIVEL,
     MENSAGEM_POCOES_INDISPONIVEL,
     PESOS_RARIDADES,
     Pocoes,
@@ -22,6 +27,20 @@ DESCRICAO_UNICODE = (
     "⚗️ Poção mítica ﹒だ⸺𝐈\n"
     "**Acentos preservados:** ação, bênção e coração."
 )
+
+
+class RespostaHTTPFalsa:
+    def __init__(self, status: int) -> None:
+        self.status = status
+        self.content = SimpleNamespace(
+            read=AsyncMock(return_value=b"x")
+        )
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
 
 
 def criar_payload(
@@ -514,6 +533,267 @@ class CarregamentoPocoesTests(
         )
 
 
+class ConfiguracaoCDNProjetoTests(unittest.TestCase):
+    URLS_OFICIAIS = {
+        "pocao_comum": (
+            "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/"
+            "pocoes/pocao_comum.png"
+        ),
+        "pocao_incomum": (
+            "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/"
+            "pocoes/pocao_incomum.jpg"
+        ),
+        "pocao_rara": (
+            "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/"
+            "pocoes/pocao_rara.jpg"
+        ),
+        "pocao_lendaria": (
+            "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/"
+            "pocoes/pocao_lendaria.jpg"
+        ),
+        "pocao_mitica": (
+            "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/"
+            "pocoes/pocao_mitica.jpg"
+        ),
+    }
+
+    def test_jsons_usam_cdn_e_backups_locais_permanecem(self):
+        for nome, url_esperada in self.URLS_OFICIAIS.items():
+            with self.subTest(nome=nome):
+                pasta = DIRETORIO_RESULTADOS / nome
+                dados = json.loads(
+                    (pasta / "resultado.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+                self.assertEqual(
+                    dados["embeds"][0]["image"]["url"],
+                    url_esperada,
+                )
+                self.assertTrue((pasta / f"{nome}.jpg").is_file())
+
+    def test_todos_os_backups_reais_sao_localizados(self):
+        cog = Pocoes(bot=None)
+
+        for nome, url in self.URLS_OFICIAIS.items():
+            with self.subTest(nome=nome):
+                resultado = cog.carregar_resultado(
+                    DIRETORIO_RESULTADOS / nome
+                )
+
+                self.assertIsNotNone(resultado)
+                preparado = cog._preparar_backup_cdn(resultado, url)
+                self.assertIsNotNone(preparado)
+                embed, arquivo = preparado
+
+                try:
+                    self.assertEqual(
+                        embed.image.url,
+                        f"attachment://{arquivo.filename}",
+                    )
+                    self.assertTrue(arquivo.filename.endswith(".jpg"))
+                finally:
+                    arquivo.close()
+
+
+class CacheCDNTests(
+    DiretorioTemporarioMixin,
+    unittest.IsolatedAsyncioTestCase,
+):
+    def criar_cog(self) -> Pocoes:
+        return Pocoes(
+            bot=None,
+            diretorio_resultados=self.diretorio,
+        )
+
+    async def test_cache_positivo_nao_repete_verificacao(self):
+        cog = self.criar_cog()
+        url = "https://cdn.example/pocao.jpg"
+        verificador = AsyncMock(return_value=True)
+
+        with patch(
+            "cogs.pocoes.time.monotonic",
+            return_value=100.0,
+        ):
+            with patch.object(
+                cog,
+                "_verificar_url_cdn",
+                verificador,
+            ):
+                primeira = await cog._cdn_disponivel(url, "pocao_rara")
+                segunda = await cog._cdn_disponivel(url, "pocao_rara")
+
+        self.assertTrue(primeira)
+        self.assertTrue(segunda)
+        self.assertEqual(CDN_CACHE_OK_TTL, 600.0)
+        verificador.assert_awaited_once_with(url)
+
+    async def test_chamadas_simultaneas_compartilham_uma_verificacao(self):
+        cog = self.criar_cog()
+        url = "https://cdn.example/pocao.jpg"
+
+        async def verificar(_url):
+            await asyncio.sleep(0)
+            return True
+
+        verificador = AsyncMock(side_effect=verificar)
+
+        with patch.object(
+            cog,
+            "_verificar_url_cdn",
+            verificador,
+        ):
+            resultados = await asyncio.gather(
+                *(
+                    cog._cdn_disponivel(url, "pocao_comum")
+                    for _ in range(5)
+                )
+            )
+
+        self.assertEqual(resultados, [True] * 5)
+        verificador.assert_awaited_once_with(url)
+
+    async def test_cache_negativo_nao_repete_verificacao(self):
+        cog = self.criar_cog()
+        url = "https://cdn.example/pocao.jpg"
+        verificador = AsyncMock(return_value=False)
+
+        with patch(
+            "cogs.pocoes.time.monotonic",
+            return_value=100.0,
+        ):
+            with patch.object(
+                cog,
+                "_verificar_url_cdn",
+                verificador,
+            ):
+                primeira = await cog._cdn_disponivel(url, "pocao_mitica")
+                segunda = await cog._cdn_disponivel(url, "pocao_mitica")
+
+        self.assertFalse(primeira)
+        self.assertFalse(segunda)
+        self.assertEqual(CDN_CACHE_FAIL_TTL, 60.0)
+        verificador.assert_awaited_once_with(url)
+
+    async def test_cache_negativo_expira_e_detecta_recuperacao(self):
+        cog = self.criar_cog()
+        url = "https://cdn.example/pocao.jpg"
+        verificador = AsyncMock(side_effect=(False, True))
+
+        with patch(
+            "cogs.pocoes.time.monotonic",
+            return_value=100.0,
+        ) as relogio:
+            with patch.object(
+                cog,
+                "_verificar_url_cdn",
+                verificador,
+            ):
+                with self.assertLogs(
+                    "cogs.pocoes",
+                    level="INFO",
+                ) as logs:
+                    self.assertFalse(
+                        await cog._cdn_disponivel(url, "pocao_mitica")
+                    )
+
+                    relogio.return_value = 159.0
+                    self.assertFalse(
+                        await cog._cdn_disponivel(url, "pocao_mitica")
+                    )
+
+                    relogio.return_value = 161.0
+                    self.assertTrue(
+                        await cog._cdn_disponivel(url, "pocao_mitica")
+                    )
+
+        self.assertEqual(verificador.await_count, 2)
+        self.assertIn("CDN voltou a responder", "\n".join(logs.output))
+
+    async def test_head_disponivel_nao_executa_get(self):
+        resposta_head = RespostaHTTPFalsa(200)
+        sessao = SimpleNamespace(
+            head=MagicMock(return_value=resposta_head),
+            get=MagicMock(),
+        )
+        url = "https://cdn.example/pocao.jpg"
+
+        disponivel = await Pocoes._requisitar_url_cdn(sessao, url)
+
+        self.assertTrue(disponivel)
+        sessao.head.assert_called_once_with(
+            url,
+            allow_redirects=True,
+        )
+        sessao.get.assert_not_called()
+
+    async def test_head_nao_suportado_usa_get_minimo(self):
+        resposta_head = RespostaHTTPFalsa(405)
+        resposta_get = RespostaHTTPFalsa(206)
+        sessao = SimpleNamespace(
+            head=MagicMock(return_value=resposta_head),
+            get=MagicMock(return_value=resposta_get),
+        )
+        url = "https://cdn.example/pocao.jpg"
+
+        disponivel = await Pocoes._requisitar_url_cdn(sessao, url)
+
+        self.assertTrue(disponivel)
+        sessao.get.assert_called_once_with(
+            url,
+            allow_redirects=True,
+            headers={"Range": "bytes=0-0"},
+        )
+        resposta_get.content.read.assert_awaited_once_with(1)
+
+    async def test_timeout_e_erro_de_conexao_marcam_indisponivel(self):
+        cog = self.criar_cog()
+        url = "https://cdn.example/pocao.jpg"
+
+        for erro in (
+            asyncio.TimeoutError(),
+            aiohttp.ClientConnectionError(),
+        ):
+            with self.subTest(erro=type(erro).__name__):
+                sessao = SimpleNamespace(
+                    head=MagicMock(side_effect=erro),
+                )
+
+                with patch.object(
+                    cog,
+                    "_obter_sessao_http",
+                    AsyncMock(return_value=sessao),
+                ):
+                    self.assertFalse(
+                        await cog._verificar_url_cdn(url)
+                    )
+
+    async def test_sessao_e_criada_uma_vez_e_fechada(self):
+        cog = self.criar_cog()
+        sessao = SimpleNamespace(
+            closed=False,
+            close=AsyncMock(),
+        )
+
+        with patch(
+            "cogs.pocoes.aiohttp.ClientSession",
+            return_value=sessao,
+        ) as construtor:
+            await cog.cog_load()
+            await cog.cog_load()
+            await cog.cog_unload()
+
+            with self.assertRaises(RuntimeError):
+                await cog._obter_sessao_http()
+
+        construtor.assert_called_once()
+        timeout = construtor.call_args.kwargs["timeout"]
+        self.assertEqual(timeout.total, 2.0)
+        sessao.close.assert_awaited_once_with()
+        self.assertIsNone(cog._sessao_http)
+
+
 class ComandoPocaoTests(
     DiretorioTemporarioMixin,
     unittest.IsolatedAsyncioTestCase,
@@ -565,25 +845,69 @@ class ComandoPocaoTests(
         self.assertNotIn("embed", chamada.kwargs)
         self.assertNotIn("attachments", chamada.kwargs)
 
-    async def test_callback_envia_embed_http_diretamente(self):
+    async def test_callback_cdn_disponivel_envia_embed_sem_arquivo(self):
         self.criar_raridades_obrigatorias(
             url_imagem="https://example.com/resultado.gif",
         )
         cog = self.criar_cog()
         interaction = self.criar_interaction()
 
-        await Pocoes.pocao.callback(cog, interaction)
+        with patch.object(
+            cog,
+            "_cdn_disponivel",
+            AsyncMock(return_value=True),
+        ) as disponibilidade:
+            await Pocoes.pocao.callback(cog, interaction)
 
+        interaction.response.send_message.assert_awaited_once()
+        interaction.edit_original_response.assert_awaited_once()
+        disponibilidade.assert_awaited_once_with(
+            "https://example.com/resultado.gif",
+            ANY,
+        )
+        chamada_inicial = interaction.response.send_message.await_args
+        chamada_final = interaction.edit_original_response.await_args
+        self.assertIsNone(self.obter_content(chamada_inicial))
+        self.assertFalse(chamada_inicial.kwargs["embed"].image)
+        self.assertIsInstance(
+            chamada_final.kwargs["embed"],
+            discord.Embed,
+        )
+        self.assertEqual(
+            chamada_final.kwargs["embed"].image.url,
+            "https://example.com/resultado.gif",
+        )
+        self.assertNotIn("file", chamada_inicial.kwargs)
+        self.assertNotIn("attachments", chamada_inicial.kwargs)
+        self.assertNotIn("file", chamada_final.kwargs)
+        self.assertNotIn("attachments", chamada_final.kwargs)
+
+    async def test_callback_reutiliza_cache_positivo_sem_novo_http(self):
+        url = "https://example.com/resultado.gif"
+        self.criar_raridades_obrigatorias(url_imagem=url)
+        cog = self.criar_cog()
+        interaction = self.criar_interaction()
+        verificador = AsyncMock(return_value=True)
+
+        with patch(
+            "cogs.pocoes.time.monotonic",
+            return_value=100.0,
+        ):
+            with patch.object(
+                cog,
+                "_verificar_url_cdn",
+                verificador,
+            ):
+                await cog._cdn_disponivel(url, "pocao_comum")
+                await Pocoes.pocao.callback(cog, interaction)
+
+        verificador.assert_awaited_once_with(url)
         interaction.response.send_message.assert_awaited_once()
         interaction.edit_original_response.assert_not_awaited()
         chamada = interaction.response.send_message.await_args
-        self.assertIsNone(self.obter_content(chamada))
-        self.assertIsInstance(chamada.kwargs["embed"], discord.Embed)
-        self.assertEqual(
-            chamada.kwargs["embed"].image.url,
-            "https://example.com/resultado.gif",
-        )
-        self.assertIsNone(chamada.kwargs.get("attachments"))
+        self.assertEqual(chamada.kwargs["embed"].image.url, url)
+        self.assertNotIn("file", chamada.kwargs)
+        self.assertNotIn("attachments", chamada.kwargs)
 
     async def test_callback_envia_attachment_com_nome_correspondente(self):
         self.criar_raridades_obrigatorias(
@@ -593,10 +917,16 @@ class ComandoPocaoTests(
         cog = self.criar_cog()
         interaction = self.criar_interaction()
 
-        await Pocoes.pocao.callback(cog, interaction)
+        with patch.object(
+            cog,
+            "_cdn_disponivel",
+            AsyncMock(),
+        ) as disponibilidade:
+            await Pocoes.pocao.callback(cog, interaction)
 
         interaction.response.send_message.assert_awaited_once()
         interaction.edit_original_response.assert_awaited_once()
+        disponibilidade.assert_not_awaited()
         chamada_inicial = interaction.response.send_message.await_args
         chamada_final = interaction.edit_original_response.await_args
         previa = chamada_inicial.kwargs["embed"]
@@ -611,6 +941,79 @@ class ComandoPocaoTests(
             )
         finally:
             arquivo.close()
+
+    async def test_callback_cdn_indisponivel_usa_backup_local(self):
+        url = "https://cdn.example/pocao_comum.png"
+        self.criar_raridades_obrigatorias(
+            url_imagem=url,
+            nome_imagem="pocao_comum.jpg",
+        )
+        cog = self.criar_cog()
+        interaction = self.criar_interaction()
+        caminho_json = (
+            self.diretorio
+            / "pocao_comum"
+            / "resultado.json"
+        )
+        json_antes = caminho_json.read_bytes()
+
+        with patch(
+            "cogs.pocoes.random.choices",
+            return_value=["pocao_comum"],
+        ) as choices:
+            with patch.object(
+                cog,
+                "_cdn_disponivel",
+                AsyncMock(return_value=False),
+            ):
+                await Pocoes.pocao.callback(cog, interaction)
+
+        choices.assert_called_once_with(
+            tuple(PESOS_RARIDADES),
+            weights=tuple(PESOS_RARIDADES.values()),
+            k=1,
+        )
+        interaction.response.send_message.assert_awaited_once()
+        interaction.edit_original_response.assert_awaited_once()
+        chamada_inicial = interaction.response.send_message.await_args
+        chamada_final = interaction.edit_original_response.await_args
+        arquivo = chamada_final.kwargs["attachments"][0]
+
+        self.assertFalse(chamada_inicial.kwargs["embed"].image)
+        self.assertIsInstance(arquivo, discord.File)
+        self.assertEqual(
+            chamada_final.kwargs["embed"].image.url,
+            f"attachment://{arquivo.filename}",
+        )
+        self.assertEqual(caminho_json.read_bytes(), json_antes)
+
+    async def test_callback_sem_cdn_nem_backup_responde_amigavelmente(self):
+        url = "https://cdn.example/inexistente.jpg"
+        self.criar_raridades_obrigatorias(url_imagem=url)
+        cog = self.criar_cog()
+        interaction = self.criar_interaction()
+
+        with patch.object(
+            cog,
+            "_cdn_disponivel",
+            AsyncMock(return_value=False),
+        ):
+            with self.assertLogs(
+                "cogs.pocoes",
+                level="WARNING",
+            ) as logs:
+                await Pocoes.pocao.callback(cog, interaction)
+
+        interaction.response.send_message.assert_awaited_once()
+        interaction.edit_original_response.assert_awaited_once()
+        chamada_final = interaction.edit_original_response.await_args
+        self.assertEqual(
+            chamada_final.kwargs["content"],
+            MENSAGEM_IMAGEM_POCAO_INDISPONIVEL,
+        )
+        self.assertIsNone(chamada_final.kwargs["embed"])
+        mensagens = "\n".join(logs.output)
+        self.assertIn("Backup local não encontrado", mensagens)
 
     async def test_erro_de_envio_e_registrado_sem_propagar(self):
         self.criar_raridades_obrigatorias(
