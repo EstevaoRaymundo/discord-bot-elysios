@@ -7,20 +7,21 @@ import re
 from typing import Callable, Optional
 
 
-MAX_REPETICOES = 50
-MAX_DADOS = 100
-MAX_FACES = 100000
+MAX_REPETICOES = 250
+MAX_DADOS = 10000
+MAX_FACES = 10000
+MAX_PERCENTUAIS = 15
 LIMITE_MENSAGEM_DISCORD = 2000
 
 MENSAGEM_REPETICOES_INVALIDAS = (
     "❌ A quantidade de rolagens individuais "
-    "precisa estar entre 1 e 50."
+    "precisa estar entre 1 e 250."
 )
 MENSAGEM_DADOS_INVALIDOS = (
-    "❌ A quantidade de dados precisa estar entre 1 e 100."
+    "❌ A quantidade de dados precisa estar entre 1 e 10000."
 )
 MENSAGEM_FACES_INVALIDAS = (
-    "❌ A quantidade de faces precisa estar entre 2 e 100000."
+    "❌ A quantidade de faces precisa estar entre 2 e 10000."
 )
 MENSAGEM_MODIFICADOR_INVALIDO = (
     "❌ O modificador da rolagem é inválido."
@@ -33,12 +34,16 @@ PADRAO_ROLAGEM = re.compile(
     r"[dD]"
     r"(?P<faces>\d+)"
     r"\s*"
-    r"(?P<modificadores>(?:[+-]\s*\d+(?:[.,]\d+)?%?\s*)*)"
+    r"(?P<modificadores>"
+    r"(?:(?:[+-]\s*\d+(?:[.,]\d+)?%?"
+    r"|\*\s*\d+(?:[.,]\d+)?)\s*)*"
+    r")"
     r"\s*$"
 )
 
 PADRAO_MODIFICADOR = re.compile(
-    r"[+-]\s*\d+(?:[.,]\d+)?%?"
+    r"(?:[+-]\s*\d+(?:[.,]\d+)?%?"
+    r"|\*\s*\d+(?:[.,]\d+)?)"
 )
 
 GeradorInteiro = Callable[[int, int], int]
@@ -50,7 +55,7 @@ class ErroRolagem(ValueError):
 
 @dataclass(frozen=True)
 class Modificador:
-    sinal: str
+    operador: str
     valor: Decimal
     percentual: bool
     texto: str
@@ -95,6 +100,19 @@ def _converter_inteiro(
         raise ErroRolagem(mensagem_erro) from erro
 
 
+def _inteiro_excede_limite(texto: str, limite: int) -> bool:
+    texto_significativo = texto.lstrip("0") or "0"
+    limite_texto = str(limite)
+
+    return (
+        len(texto_significativo) > len(limite_texto)
+        or (
+            len(texto_significativo) == len(limite_texto)
+            and texto_significativo > limite_texto
+        )
+    )
+
+
 def interpretar_rolagem(
     expressao: str
 ) -> Optional[ExpressaoRolagem]:
@@ -109,6 +127,15 @@ def interpretar_rolagem(
     quantidade_texto = correspondencia.group("quantidade")
     faces_texto = correspondencia.group("faces")
     modificadores_texto = correspondencia.group("modificadores")
+
+    if (
+        repeticoes_texto is not None
+        and _inteiro_excede_limite(
+            repeticoes_texto,
+            MAX_REPETICOES
+        )
+    ):
+        return None
 
     repeticoes = _converter_inteiro(
         repeticoes_texto or "",
@@ -126,7 +153,7 @@ def interpretar_rolagem(
         MENSAGEM_FACES_INVALIDAS
     )
 
-    if repeticoes < 1 or repeticoes > MAX_REPETICOES:
+    if repeticoes < 1:
         raise ErroRolagem(MENSAGEM_REPETICOES_INVALIDAS)
 
     if quantidade < 1 or quantidade > MAX_DADOS:
@@ -150,7 +177,7 @@ def interpretar_rolagem(
 
             modificadores.append(
                 Modificador(
-                    sinal=texto_normalizado[0],
+                    operador=texto_normalizado[0],
                     valor=Decimal(
                         valor_texto.replace(",", ".")
                     ),
@@ -162,6 +189,12 @@ def interpretar_rolagem(
         raise ErroRolagem(
             MENSAGEM_MODIFICADOR_INVALIDO
         ) from erro
+
+    if sum(
+        modificador.percentual
+        for modificador in modificadores
+    ) > MAX_PERCENTUAIS:
+        return None
 
     if repeticoes_texto is not None:
         expressao_exibida = (
@@ -191,16 +224,28 @@ def _aplicar_modificadores(
         if modificador.percentual:
             fator = modificador.valor / Decimal("100")
 
-            if modificador.sinal == "+":
+            if modificador.operador == "+":
                 resultado *= Decimal("1") + fator
             else:
                 resultado *= Decimal("1") - fator
-        elif modificador.sinal == "+":
+        elif modificador.operador == "+":
             resultado += modificador.valor
-        else:
+        elif modificador.operador == "-":
             resultado -= modificador.valor
+        else:
+            resultado *= modificador.valor
 
     return resultado
+
+
+def _formatar_resultado_individual(
+    resultado: int,
+    faces: int
+) -> str:
+    if resultado == 1 or resultado == faces:
+        return f"**{resultado}**"
+
+    return str(resultado)
 
 
 def _rolar_uma_vez(
@@ -218,11 +263,10 @@ def _rolar_uma_vez(
     )
     resultado_formatado = formatar_numero(resultado_final)
 
-    dados_formatados = (
-        "["
-        + ", ".join(str(resultado) for resultado in resultados)
-        + "]"
-    )
+    dados_formatados = "[" + ", ".join(
+        _formatar_resultado_individual(resultado, dados.faces)
+        for resultado in resultados
+    ) + "]"
 
     return (
         f"`  {resultado_formatado}  ` "
