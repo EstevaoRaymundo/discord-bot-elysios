@@ -36,6 +36,7 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(bot.bot.get_cog("Turnos"))
         self.assertIsNotNone(bot.bot.get_cog("Rolagem"))
         self.assertIsNotNone(bot.bot.get_cog("Pocoes"))
+        self.assertIsNotNone(bot.bot.get_cog("Artesanato"))
         self.assertIsNotNone(bot.bot.get_cog("Estabilidade"))
         self.assertIsNotNone(bot.bot.get_cog("Iniciar"))
         self.assertIs(bot.bot.tree, arvore_original)
@@ -51,6 +52,16 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
             "iniciar poção",
         )
         self.assertIsNotNone(bot.bot.tree.get_command("poção"))
+        comando_artesanato = bot.bot.tree.get_command("artesanato")
+        self.assertIsInstance(
+            comando_artesanato,
+            app_commands.Command,
+        )
+        self.assertEqual(comando_artesanato.parameters, [])
+        self.assertEqual(
+            comando_artesanato.to_dict(bot.bot.tree)["options"],
+            [],
+        )
         comando_estabilidade = bot.bot.tree.get_command("estabilidade")
         self.assertIsInstance(
             comando_estabilidade,
@@ -71,6 +82,7 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(bot.bot.get_command("estabilidade"))
         self.assertIsNone(bot.bot.get_command("poção"))
         self.assertIsNone(bot.bot.get_command("pocao"))
+        self.assertIsNone(bot.bot.get_command("artesanato"))
         sincronizar.assert_awaited_once_with()
 
         await bot.bot.close()

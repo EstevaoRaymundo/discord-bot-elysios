@@ -444,6 +444,12 @@ class CarregamentoPocoesTests(
         )
         (pasta_estabilidade / "estavel").mkdir()
         (pasta_estabilidade / "instavel").mkdir()
+        pasta_artesanato = self.diretorio / "artesanato"
+        pasta_artesanato.mkdir(parents=True)
+        (pasta_artesanato / "resultado.json").write_text(
+            json.dumps(criar_payload(descricao="Não é uma poção")),
+            encoding="utf-8",
+        )
         cog = self.criar_cog()
 
         pastas = cog.encontrar_pastas()
