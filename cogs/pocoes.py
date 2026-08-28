@@ -36,7 +36,9 @@ DIRETORIO_RESULTADOS = (
 )
 DIRETORIO_ESTABILIDADE = DIRETORIO_RESULTADOS / "estabilidade"
 NOME_ARQUIVO_RESULTADO = "resultado.json"
-DIRETORIOS_RESERVADOS = frozenset({"estabilidade", "manuais"})
+DIRETORIOS_RESERVADOS = frozenset(
+    {"artesanato", "estabilidade", "manuais"}
+)
 PESOS_RARIDADES = {
     "pocao_comum": 50,
     "pocao_incomum": 25,
@@ -217,6 +219,11 @@ class Pocoes(commands.Cog):
 
         return None
 
+    def consultar_cache_cdn(self, url: str) -> Optional[bool]:
+        """Expõe o cache por URL para outros sistemas do mesmo bot."""
+
+        return self._consultar_cache_cdn(url)
+
     async def _cdn_disponivel(
         self,
         url: str,
@@ -276,6 +283,15 @@ class Pocoes(commands.Cog):
                 )
 
             return disponivel
+
+    async def cdn_disponivel(
+        self,
+        url: str,
+        nome_resultado: str,
+    ) -> bool:
+        """Compartilha a sessão, o cache e os TTLs ativos do Cog."""
+
+        return await self._cdn_disponivel(url, nome_resultado)
 
     def encontrar_pastas(self) -> List[Path]:
         """Lista somente as subpastas imediatas de resultados."""
