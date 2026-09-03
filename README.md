@@ -1,13 +1,15 @@
 # Bot Elysios
 
 Bot de Discord com rolagem de dados por mensagens, gerenciamento de ordens de
-turnos, manuais, testes de estabilidade e resultados de poções e artesanato.
+turnos, manuais, testes de estabilidade e resultados de poções, ingredientes e
+artesanato.
 
 ## Estrutura
 
 ```text
 bot.py                 Ponto de entrada e eventos gerais
 cogs/artesanato.py     Slash command /artesanato
+cogs/ingredientes.py   Slash command /ingredientes
 cogs/iniciativa.py     Comandos !turnos
 cogs/iniciar.py        Grupo de manuais /iniciar
 cogs/pocoes.py         Slash commands /poção e /estabilidade
@@ -48,9 +50,10 @@ executa `N` rolagens independentes e mostra cada resultado em uma linha.
 ## Dados locais e Discohook
 
 O diretório `data/` armazena os resultados usados por `/poção`,
-`/artesanato` e `/estabilidade`, além dos manuais fixos do grupo `/iniciar`. O
-bot não consulta o Discohook, mensagens antigas ou webhooks para carregar esses
-conteúdos. URLs HTTPS presentes nas embeds podem apontar para uma CDN.
+`/ingredientes`, `/artesanato` e `/estabilidade`, além dos manuais fixos do
+grupo `/iniciar`. O bot não consulta o Discohook, mensagens antigas ou webhooks
+para carregar esses conteúdos. URLs HTTPS presentes nas embeds podem apontar
+para uma CDN.
 
 ### Estrutura completa
 
@@ -72,6 +75,11 @@ data/
 │   └── artesanatomitico/
 │       ├── resultado.json
 │       └── artesanatomitico.gif
+├── ingredientes/
+│   ├── ingredientecomum/
+│   ├── ingredienteraro/
+│   ├── ingredientelendario/
+│   └── ingredientemitico/
 ├── pocao_comum/
 │   ├── resultado.json
 │   └── pocao_comum.gif        Opcional; necessário para attachment://
@@ -188,8 +196,8 @@ acontece e o sistema informa indisponibilidade temporária, sem redistribuir sua
 probabilidade. Pastas extras não participam automaticamente: uma nova raridade
 precisa receber um peso explícito em `PESOS_RARIDADES`, em `cogs/pocoes.py`.
 Os pesos devem sempre somar 100. Os diretórios `data/artesanato/`,
-`data/estabilidade/` e `data/manuais/` continuam reservados para seus próprios
-sistemas.
+`data/ingredientes/`, `data/estabilidade/` e `data/manuais/` continuam
+reservados para seus próprios sistemas.
 
 ## Sistema de artesanato (`/artesanato`)
 
@@ -250,6 +258,97 @@ pasta com `discord.File`, troca somente a URL da imagem na embed em memória por
 CDN estiver saudável, a ausência do backup local não impede o resultado; se a
 CDN e o GIF falharem juntos, o jogador recebe uma mensagem amigável. Os GIFs
 permanecem animados e não devem ser convertidos para PNG.
+
+## Sistema de ingredientes (`/ingredientes`)
+
+`/ingredientes` sorteia primeiro uma raridade e depois um dos cinco ingredientes
+daquela categoria. Os pesos são exclusivos deste comando:
+
+| Raridade | Probabilidade | Chance de cada ingrediente |
+| --- | ---: | ---: |
+| Comum | 62% | 12,4% |
+| Raro | 32% | 6,4% |
+| Lendário | 4% | 0,8% |
+| Mítico | 2% | 0,4% |
+
+### Como adicionar os resultados
+
+Cada uma das 20 pastas deve conter exatamente os dois arquivos definitivos
+indicados abaixo:
+
+1. `resultado.json`, exportado do Discohook e salvo em UTF-8;
+2. a imagem local com o nome e a extensão exatos da tabela.
+
+A imagem principal da primeira embed deve continuar apontando para a Cloudflare
+R2. Por exemplo, no JSON de Cogumelos, mantenha:
+
+```json
+"image": {
+  "url": "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/cogumelos.png"
+}
+```
+
+Não troque essa URL por `attachment://`. A imagem local fica ao lado do JSON e
+é usada automaticamente somente quando a CDN está indisponível. O bot altera
+apenas a embed em memória durante o fallback; o arquivo `resultado.json` nunca é
+reescrito.
+
+| Raridade | Pasta de destino | Imagem local obrigatória | URL em `embeds[0].image.url` |
+| --- | --- | --- | --- |
+| Comum | `data/ingredientes/ingredientecomum/cogumelos/` | `cogumelos.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/cogumelos.png` |
+| Comum | `data/ingredientes/ingredientecomum/lirio/` | `lirio.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/lirio.png` |
+| Comum | `data/ingredientes/ingredientecomum/gengibre/` | `gengibre.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/gengibre.png` |
+| Comum | `data/ingredientes/ingredientecomum/salgema/` | `salgema.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/salgema.png` |
+| Comum | `data/ingredientes/ingredientecomum/petalabeladona/` | `petalabeladona.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/petalabeladona.png` |
+| Raro | `data/ingredientes/ingredienteraro/perolanegra/` | `perolanegra.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/perolanegra.jpg` |
+| Raro | `data/ingredientes/ingredienteraro/musgoruinas/` | `musgoruinas.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/musgoruinas.jpg` |
+| Raro | `data/ingredientes/ingredienteraro/escamadragao/` | `escamadragao.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/escamadragao.jpg` |
+| Raro | `data/ingredientes/ingredienteraro/floreterna/` | `floreterna.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/floreterna.jpg` |
+| Raro | `data/ingredientes/ingredienteraro/essenciaempatica/` | `essenciaempatica.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/essenciaempatica.jpg` |
+| Lendário | `data/ingredientes/ingredientelendario/cometaarcano/` | `cometaarcano.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/cometaarcano.jpg` |
+| Lendário | `data/ingredientes/ingredientelendario/sonhagumelo/` | `sonhagumelo.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/sonhagumelo.jpg` |
+| Lendário | `data/ingredientes/ingredientelendario/meldarainharubra/` | `meldarainharubra.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/meldarainharubra.png` |
+| Lendário | `data/ingredientes/ingredientelendario/nogueiradeferro/` | `nogueiradeferro.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/nogueiradeferro.png` |
+| Lendário | `data/ingredientes/ingredientelendario/pedradasestacoes/` | `pedradasestacoes.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/pedradasestacoes.png` |
+| Mítico | `data/ingredientes/ingredientemitico/rasgaveus/` | `rasgaveus.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/rasgaveus.jpg` |
+| Mítico | `data/ingredientes/ingredientemitico/saisepidote/` | `saisepidote.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/saisepidote.jpg` |
+| Mítico | `data/ingredientes/ingredientemitico/sangueberserk/` | `sangueberserk.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/sangueberserk.jpg` |
+| Mítico | `data/ingredientes/ingredientemitico/solaria/` | `solaria.jpg` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/solaria.jpg` |
+| Mítico | `data/ingredientes/ingredientemitico/nocturnia/` | `nocturnia.png` | `https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/nocturnia.png` |
+
+Em cada pasta da tabela, o caminho completo do JSON é a pasta de destino mais
+`resultado.json`. Por exemplo:
+
+```text
+data/ingredientes/ingredientecomum/cogumelos/resultado.json
+data/ingredientes/ingredientecomum/cogumelos/cogumelos.png
+```
+
+Antes de habilitar o sorteio, confira:
+
+1. todas as 20 pastas possuem `resultado.json` válido;
+2. todos os 20 arquivos locais existem, não estão vazios e preservam `.png` ou
+   `.jpg` conforme a tabela;
+3. cada JSON possui `embeds[0].image.url` exatamente igual à URL correspondente;
+4. nenhuma pasta, imagem ou extensão foi renomeada;
+5. o payload continua contendo uma primeira embed válida.
+
+Se qualquer um dos 20 resultados estiver ausente ou inválido, o comando informa
+indisponibilidade temporária e não realiza o sorteio. Isso impede que resultados
+restantes recebam probabilidades maiores. O console informa qual pasta, JSON,
+URL ou imagem precisa ser corrigido.
+
+Os arquivos são lidos novamente a cada uso. Depois de adicionar ou substituir
+somente um JSON ou uma imagem, não é necessário editar uma lista Python nem
+sincronizar novamente os slash commands.
+
+A CDN, a sessão HTTP e o cache são compartilhados com `/poção`. Somente a URL
+do ingrediente sorteado é verificada sob demanda. Resultados positivos ficam em
+cache por aproximadamente 10 minutos e falhas por aproximadamente 1 minuto.
+
+Cada usuário possui dois usos dentro de uma janela móvel de 24 horas. O estado é
+salvo automaticamente em `data/database/cooldowns.db`. No canal de testes com
+ID `1469573136604205149`, os usos são ilimitados e não são gravados no banco.
 
 ## Manuais de início (`/iniciar`)
 
@@ -325,9 +424,10 @@ uma das duas embeds.
 ## Sincronização dos slash commands
 
 Na inicialização, o bot carrega os Cogs e sincroniza globalmente uma única
-árvore de Application Commands. Depois de adicionar `/artesanato`, reinicie o
-bot e aguarde a propagação da sincronização pelo Discord. O mesmo vale ao
-adicionar `/estabilidade`, `/iniciar poção` ou outro novo subcomando.
+árvore de Application Commands. Depois de adicionar `/ingredientes` ou outro
+novo comando, reinicie o bot e aguarde a propagação da sincronização pelo
+Discord. O mesmo vale ao adicionar `/artesanato`, `/estabilidade`,
+`/iniciar poção` ou outro novo subcomando.
 
 Adicionar ou editar somente um JSON ou uma mídia de um resultado/manual já
 registrado não muda a estrutura dos comandos e não exige nova sincronização. A
