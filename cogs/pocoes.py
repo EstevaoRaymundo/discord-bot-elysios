@@ -37,7 +37,7 @@ DIRETORIO_RESULTADOS = (
 DIRETORIO_ESTABILIDADE = DIRETORIO_RESULTADOS / "estabilidade"
 NOME_ARQUIVO_RESULTADO = "resultado.json"
 DIRETORIOS_RESERVADOS = frozenset(
-    {"artesanato", "estabilidade", "manuais"}
+    {"artesanato", "estabilidade", "ingredientes", "manuais"}
 )
 PESOS_RARIDADES = {
     "pocao_comum": 50,
