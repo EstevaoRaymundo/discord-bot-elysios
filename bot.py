@@ -23,6 +23,7 @@ EXTENSOES = (
     "cogs.iniciar",
     "cogs.iniciativa",
     "cogs.pocoes",
+    "cogs.ingredientes",
     "cogs.artesanato",
     "cogs.rolagem",
 )
