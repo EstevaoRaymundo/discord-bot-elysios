@@ -36,6 +36,7 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(bot.bot.get_cog("Turnos"))
         self.assertIsNotNone(bot.bot.get_cog("Rolagem"))
         self.assertIsNotNone(bot.bot.get_cog("Pocoes"))
+        self.assertIsNotNone(bot.bot.get_cog("Ingredientes"))
         self.assertIsNotNone(bot.bot.get_cog("Artesanato"))
         self.assertIsNotNone(bot.bot.get_cog("Estabilidade"))
         self.assertIsNotNone(bot.bot.get_cog("Iniciar"))
@@ -62,6 +63,16 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
             comando_artesanato.to_dict(bot.bot.tree)["options"],
             [],
         )
+        comando_ingredientes = bot.bot.tree.get_command("ingredientes")
+        self.assertIsInstance(
+            comando_ingredientes,
+            app_commands.Command,
+        )
+        self.assertEqual(comando_ingredientes.parameters, [])
+        self.assertEqual(
+            comando_ingredientes.to_dict(bot.bot.tree)["options"],
+            [],
+        )
         comando_estabilidade = bot.bot.tree.get_command("estabilidade")
         self.assertIsInstance(
             comando_estabilidade,
@@ -83,6 +94,7 @@ class InicializacaoBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(bot.bot.get_command("poção"))
         self.assertIsNone(bot.bot.get_command("pocao"))
         self.assertIsNone(bot.bot.get_command("artesanato"))
+        self.assertIsNone(bot.bot.get_command("ingredientes"))
         sincronizar.assert_awaited_once_with()
 
         await bot.bot.close()

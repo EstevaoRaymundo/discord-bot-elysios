@@ -450,6 +450,12 @@ class CarregamentoPocoesTests(
             json.dumps(criar_payload(descricao="Não é uma poção")),
             encoding="utf-8",
         )
+        pasta_ingredientes = self.diretorio / "ingredientes"
+        pasta_ingredientes.mkdir(parents=True)
+        (pasta_ingredientes / "resultado.json").write_text(
+            json.dumps(criar_payload(descricao="Não é uma poção")),
+            encoding="utf-8",
+        )
         cog = self.criar_cog()
 
         pastas = cog.encontrar_pastas()
