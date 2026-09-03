@@ -1,12 +1,11 @@
 {
   "embeds": [
     {
-      "title": "Ingrediente: Escama de Dragão",
-      "description": "✦ Raridade: **Raro**",
-      "color": 5793266,
+      "description": "# ﹒だ﹒ ⸺ ﹒ ' 𝐈ngrediente﹒ 🐉  ›\n\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝\n\n﹒＞＜﹐ *Encontradas em diversos ambientes, as Escamas de Dragão chamam atenção pelo brilho intenso e pelas cores que podem variar entre roxo, vermelho, amarelo e preto, sendo consideradas materiais raros e valiosos.*\n\n✦ Ingrediente: **Escama de Dragão**\n✦ Raridade: **Raro**\n✦ Propriedades: **Possui propriedades ofensivas e defensivas, podendo enfraquecer resistências ou enrijecer a pele contra impactos e projéteis, para mais informações, procure o canal de <#1534370198306689044>**\n\n﹒＞＜﹐ *Guarde esse ingrediente no seu <#1507922597017419898>. Para criar uma poção retire o molde em <#1360640020737949876>, preencha as informações e envie-a no canal <#1507923664220192960>*\n\n⏝﹒︶⏝﹒︶⏝﹒︶﹒︶⏝\n",
       "image": {
         "url": "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/escamadragao.jpg"
-      }
+      },
+      "color": 7365202
     }
   ]
 }
