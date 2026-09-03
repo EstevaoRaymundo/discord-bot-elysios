@@ -366,7 +366,16 @@ class Ingredientes(commands.Cog):
 
         try:
             with caminho_json.open("r", encoding="utf-8") as arquivo_json:
-                dados = json.load(arquivo_json)
+                conteudo_json = arquivo_json.read()
+
+            if not conteudo_json.strip():
+                logger.warning(
+                    "[INGREDIENTES] resultado.json vazio: %s",
+                    nome,
+                )
+                return None
+
+            dados = json.loads(conteudo_json)
         except (json.JSONDecodeError, UnicodeDecodeError):
             logger.warning(
                 "[INGREDIENTES] JSON inválido: %s",

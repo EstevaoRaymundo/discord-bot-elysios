@@ -359,6 +359,17 @@ class ConfiguracaoIngredientesTests(unittest.TestCase):
         self.assertEqual(Ingredientes.ingredientes.name, "ingredientes")
         self.assertEqual(Ingredientes.ingredientes.parameters, [])
 
+    def test_os_vinte_resultados_reais_formam_um_conjunto_valido(self):
+        cog = Ingredientes(bot=None)
+
+        resultados = cog.carregar_resultados_obrigatorios()
+
+        self.assertIsNotNone(resultados)
+        self.assertEqual(
+            sum(len(itens) for itens in resultados.values()),
+            20,
+        )
+
 
 class CarregamentoIngredientesTests(
     DiretorioIngredientesTemporarioMixin,
@@ -390,6 +401,16 @@ class CarregamentoIngredientesTests(
                             / nome_arquivo
                         ),
                     )
+
+    def test_resultado_json_vazio_e_rejeitado_com_mensagem_clara(self):
+        pasta = self.criar_resultado("comum", "cogumelos")
+        (pasta / "resultado.json").write_text("   \n", encoding="utf-8")
+
+        with self.assertLogs("cogs.ingredientes", level="WARNING") as logs:
+            resultado = self.cog.carregar_resultado("comum", "cogumelos")
+
+        self.assertIsNone(resultado)
+        self.assertIn("resultado.json vazio", "\n".join(logs.output))
 
     def test_url_com_mesmo_nome_mas_origem_incorreta_e_rejeitada(self):
         nome = "cogumelos"

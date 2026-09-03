@@ -1,0 +1,12 @@
+{
+  "embeds": [
+    {
+      "title": "Ingrediente: Pedra das Estações",
+      "description": "✦ Raridade: **Lendário**",
+      "color": 16766720,
+      "image": {
+        "url": "https://pub-57a72b7c1133428e9da66f38a6b6bbf4.r2.dev/ingredientes/pedradasestacoes.png"
+      }
+    }
+  ]
+}
